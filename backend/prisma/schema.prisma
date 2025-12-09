@@ -1,0 +1,323 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ORGANIZATIONS & USERS
+// ============================================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  plan      String   @default("starter") // starter, professional, enterprise
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // OpenAI Configuration
+  openaiApiKey      String?  @db.Text
+  openaiModel       String?  @default("gpt-4-turbo")
+  openaiMaxTokens   Int?     @default(500)
+  openaiTemperature Float?   @default(0.7)
+
+  users         User[]
+  agents        Agent[]
+  channels      Channel[]
+  conversations Conversation[]
+  leads         Lead[]
+  webhooks      Webhook[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  email          String   @unique
+  password       String
+  name           String
+  role           String   @default("consultant") // admin, manager, consultant
+  isActive       Boolean  @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedConversations Conversation[]
+  sentMessages          Message[]
+  assignedLeads         Lead[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+// ============================================
+// AGENTS
+// ============================================
+
+model Agent {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  personality     String?
+  tone            String?
+  objective       String?
+  systemMessage   String   @db.Text
+  model           String   @default("gpt-4-turbo")
+  temperature     Float    @default(0.7)
+  maxTokens       Int      @default(500)
+  isActive        Boolean  @default(true)
+  isPublished     Boolean  @default(false)
+  apiKeyEncrypted String?  @db.Text
+  customScripts   Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  channels      AgentChannel[]
+  conversations Conversation[]
+  webhooks      AgentWebhook[]
+
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("agents")
+}
+
+// ============================================
+// CHANNELS
+// ============================================
+
+model Channel {
+  id            String   @id @default(uuid())
+  type          String   // whatsapp, instagram
+  name          String
+  identifier    String   // phone number or username
+  accessToken   String?  @db.Text
+  config        Json?
+  status        String   @default("inactive") // active, inactive, error
+  lastSyncAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  agents        AgentChannel[]
+  conversations Conversation[]
+
+  @@unique([organizationId, type, identifier])
+  @@index([organizationId])
+  @@index([type])
+  @@map("channels")
+}
+
+model AgentChannel {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  agentId   String
+  agent     Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  channelId String
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, channelId])
+  @@index([agentId])
+  @@index([channelId])
+  @@map("agent_channels")
+}
+
+// ============================================
+// CONVERSATIONS & MESSAGES
+// ============================================
+
+model Conversation {
+  id                String    @id @default(uuid())
+  status            String    @default("active") // active, waiting, closed
+  contactName       String
+  contactIdentifier String    // phone or instagram ID
+  lastMessageAt     DateTime  @default(now())
+  closedAt          DateTime?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  channelId String
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  agentId String?
+  agent   Agent?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  assignedToId String?
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  leadId String? @unique
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  messages Message[]
+
+  @@index([organizationId])
+  @@index([channelId])
+  @@index([agentId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  type           String   // text, image, file, audio
+  content        String   @db.Text
+  senderType     String   // contact, ai, user
+  confidence     Float?
+  metadata       Json?
+  attachments    Json?
+  createdAt      DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([senderType])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+// ============================================
+// LEADS
+// ============================================
+
+model Lead {
+  id           String    @id @default(uuid())
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  position     String?
+  temperature  String    @default("cold") // hot, warm, cold
+  score        Int       @default(0)
+  status       String    @default("new") // new, contacted, qualified, converted, lost
+  source       String?
+  interest     String?
+  customFields Json?
+  lastContactAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  assignedToId String?
+  assignedTo   User?   @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  conversation Conversation?
+
+  @@index([organizationId])
+  @@index([temperature])
+  @@index([status])
+  @@index([assignedToId])
+  @@index([createdAt])
+  @@map("leads")
+}
+
+// ============================================
+// WEBHOOKS
+// ============================================
+
+model Webhook {
+  id          String   @id @default(uuid())
+  name        String
+  url         String
+  events      String[] // lead.created, lead.qualified, conversation.new, etc.
+  secret      String?
+  isActive    Boolean  @default(true)
+  retryCount  Int      @default(3)
+  timeout     Int      @default(5000)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  agents AgentWebhook[]
+  logs   WebhookLog[]
+
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("webhooks")
+}
+
+model AgentWebhook {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  webhookId String
+  webhook   Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, webhookId])
+  @@index([agentId])
+  @@index([webhookId])
+  @@map("agent_webhooks")
+}
+
+model WebhookLog {
+  id           String   @id @default(uuid())
+  event        String
+  payload      Json
+  response     Json?
+  statusCode   Int?
+  success      Boolean
+  errorMessage String?  @db.Text
+  executedAt   DateTime @default(now())
+
+  webhookId String
+  webhook   Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@index([executedAt])
+  @@index([success])
+  @@map("webhook_logs")
+}
+
+// ============================================
+// ANALYTICS
+// ============================================
+
+model Analytics {
+  id             String   @id @default(uuid())
+  date           DateTime @db.Date
+  metric         String   // conversations_count, leads_count, messages_count, etc.
+  value          Float
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organizationId String
+
+  @@unique([organizationId, date, metric])
+  @@index([organizationId])
+  @@index([date])
+  @@index([metric])
+  @@map("analytics")
+}
