@@ -27,8 +27,10 @@ import type {
     UpdateUserDto,
 } from '@/types/api';
 
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL?.replace(/\/$/, '');
 const API_URL =
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || 'http://localhost:3001/api';
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
+    (WS_BASE ? `${WS_BASE}/api` : 'http://localhost:3001/api');
 
 class ApiService {
     public api: AxiosInstance;
