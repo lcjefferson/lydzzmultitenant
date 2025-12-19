@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { MessageBubble } from '@/components/chat/message-bubble';
-import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X } from 'lucide-react';
+import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X, Mic, Square } from 'lucide-react';
 import { useConversations, useUpdateConversation } from '@/hooks/api/use-conversations';
 import { useMessages, useCreateMessage } from '@/hooks/api/use-messages';
 import { useSocket } from '@/hooks/use-socket';
@@ -30,6 +30,68 @@ export default function ConversationsPage() {
     const [showLeadModal, setShowLeadModal] = useState(false);
     const { user } = useAuth();
     const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Audio recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+
+    const handleStartRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunksRef.current.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+                const file = new File([audioBlob], `audio-${Date.now()}.webm`, { type: 'audio/webm' });
+                
+                try {
+                    const uploaded = await api.uploadFile(file);
+                    if (effectiveSelectedId) {
+                         await createMessage.mutateAsync({
+                            conversationId: effectiveSelectedId,
+                            content: 'Áudio enviado',
+                            senderType: 'user',
+                            type: 'audio',
+                            attachments: {
+                                url: uploaded.path,
+                                name: uploaded.filename,
+                                mimeType: uploaded.mimetype
+                            }
+                        });
+                        toast.success('Áudio enviado!');
+                    }
+                } catch (error) {
+                    console.error('Error uploading audio:', error);
+                    toast.error('Erro ao enviar áudio');
+                }
+                
+                stream.getTracks().forEach(track => track.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            console.error('Error accessing microphone:', err);
+            toast.error('Erro ao acessar microfone. Verifique as permissões.');
+        }
+    };
+
+    const handleStopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
 
     const { data: conversations, isLoading: conversationsLoading } = useConversations();
     const searchParams = useSearchParams();
@@ -48,6 +110,57 @@ export default function ConversationsPage() {
     const { data: messages } = useMessages(effectiveSelectedId || '');
     const createMessage = useCreateMessage();
     const updateConversation = useUpdateConversation();
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !effectiveSelectedId) return;
+
+        try {
+            const uploaded = await api.uploadFile(file);
+            
+            const isImage = file.type.startsWith('image/');
+            const isVideo = file.type.startsWith('video/');
+            const isAudio = file.type.startsWith('audio/');
+            
+            let type: 'image' | 'file' | 'audio' | 'video' = 'file';
+            let content = 'Arquivo enviado';
+
+            if (isImage) {
+                type = 'image';
+                content = 'Imagem enviada';
+            } else if (isVideo) {
+                type = 'video';
+                content = 'Vídeo enviado';
+            } else if (isAudio) {
+                type = 'audio';
+                content = 'Áudio enviado';
+            }
+
+            // Use message input as caption if available
+            const caption = messageInput.trim() || content;
+
+            await createMessage.mutateAsync({
+                conversationId: effectiveSelectedId,
+                content: caption,
+                senderType: 'user',
+                type,
+                attachments: {
+                    url: uploaded.path,
+                    name: uploaded.originalName || uploaded.filename,
+                    mimeType: uploaded.mimetype
+                }
+            });
+            
+            if (messageInput.trim()) setMessageInput('');
+            
+            toast.success('Arquivo enviado com sucesso!');
+        } catch (error) {
+            toast.error('Erro ao enviar arquivo');
+            console.error(error);
+        } finally {
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
 
     // WebSocket connection
     const { isConnected, joinConversation, leaveConversation, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated } = useSocket();
@@ -327,10 +440,14 @@ export default function ConversationsPage() {
 
                         {/* Message Input */}
                         <div className="p-4 border-t border-border bg-background-secondary">
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                onChange={handleFileUpload}
+                                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+                            />
                             <div className="flex items-end gap-2">
-                                <button className="p-2 hover:bg-surface rounded-md transition-colors">
-                                    <Paperclip className="h-5 w-5" />
-                                </button>
                                 <div className="flex-1">
                                     <textarea
                                         value={messageInput}
@@ -347,7 +464,23 @@ export default function ConversationsPage() {
                                         disabled={createMessage.isPending}
                                     />
                                 </div>
-                                <Button onClick={handleSendMessage} disabled={createMessage.isPending}>
+                                <button 
+                                    type="button"
+                                    className="p-2 text-neutral-500 hover:text-neutral-700 hover:bg-surface rounded-md transition-colors"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    title="Anexar arquivo"
+                                >
+                                    <Paperclip className="h-5 w-5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`p-2 rounded-md transition-colors ${isRecording ? 'text-red-500 hover:text-red-600 bg-red-50' : 'text-neutral-500 hover:text-neutral-700 hover:bg-surface'}`}
+                                    onClick={isRecording ? handleStopRecording : handleStartRecording}
+                                    title={isRecording ? "Parar e enviar" : "Gravar áudio"}
+                                >
+                                    {isRecording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-5 w-5" />}
+                                </button>
+                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording}>
                                     <Send className="h-4 w-4" />
                                 </Button>
                             </div>

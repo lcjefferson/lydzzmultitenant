@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { Message } from '@prisma/client';
@@ -7,6 +8,7 @@ import { ConversationsGateway } from '../conversations/conversations.gateway';
 
 import { OpenAIService } from '../common/openai.service';
 import { WhatsAppService } from '../integrations/whatsapp.service';
+import { UazapiService } from '../integrations/uazapi.service';
 
 @Injectable()
 export class MessagesService {
@@ -15,6 +17,8 @@ export class MessagesService {
     private readonly gateway: ConversationsGateway,
     private readonly openAIService: OpenAIService,
     private readonly whatsAppService: WhatsAppService,
+    private readonly uazapiService: UazapiService,
+    private readonly configService: ConfigService,
   ) {}
 
   async create(dto: CreateMessageDto): Promise<Message> {
@@ -101,7 +105,33 @@ export class MessagesService {
       });
 
       if (conversation && conversation.channel.type === 'whatsapp') {
-        await this.sendWhatsAppMessage(conversation, dto.content);
+        let mediaUrl: string | undefined;
+        let mediaType: 'image' | 'video' | 'audio' | 'document' | undefined;
+
+        // Handle media messages (image, file, audio, video)
+        if (dto.type === 'image' || dto.type === 'file' || dto.type === 'audio' || dto.type === 'video') {
+            const relativePath = dto.attachments?.url || dto.metadata?.file?.path || dto.attachments?.path;
+            
+            if (relativePath) {
+                // Construct full URL for Uazapi if path is relative
+                if (!relativePath.startsWith('http')) {
+                    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3001';
+                    // Ensure relativePath doesn't start with / if we add one, or handle it
+                    // relativePath from upload is likely "/uploads/..."
+                    mediaUrl = `${appUrl}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+                } else {
+                    mediaUrl = relativePath;
+                }
+            }
+
+            // Determine media type for Uazapi
+            if (dto.type === 'image') mediaType = 'image';
+            else if (dto.type === 'audio') mediaType = 'audio';
+            else if (dto.type === 'video') mediaType = 'video';
+            else mediaType = 'document'; // Default for 'file'
+        }
+
+        await this.sendWhatsAppMessage(conversation, dto.content, mediaUrl, mediaType);
       }
 
       if (conversation && !conversation.agentId) {
@@ -231,11 +261,13 @@ export class MessagesService {
     conversation: {
       contactIdentifier: string;
       channel: {
-        config: import('@prisma/client').Prisma.JsonValue;
+        config: import('@prisma/client').Prisma.JsonValue | null;
         accessToken?: string | null;
       };
     },
     message: string,
+    mediaUrl?: string,
+    mediaType?: 'image' | 'video' | 'audio' | 'document',
   ) {
     try {
       const channel = conversation.channel;
@@ -244,11 +276,49 @@ export class MessagesService {
           ? (channel.config as {
               phoneNumberId?: string;
               accessToken?: string;
+              instanceId?: string;
+              token?: string;
+              provider?: 'whatsapp-official' | 'uazapi';
             })
           : null;
 
-      const accessToken =
-        config?.accessToken || channel.accessToken || undefined;
+      const provider =
+        (channel as unknown as { provider?: string }).provider ??
+        (config?.provider ?? (config?.instanceId && config?.token ? 'uazapi' : 'whatsapp-official'));
+
+      console.log(`Sending message via provider: ${provider}, to: ${conversation.contactIdentifier}`);
+
+      if (provider === 'uazapi') {
+        const instanceId = config?.instanceId ?? this.configService.get<string>('UAZAPI_INSTANCE_ID');
+        const token = config?.token ?? this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
+        console.log(`Uazapi config - Instance: ${instanceId}, Token: ${token ? '***' : 'missing'}`);
+        
+        if (!instanceId || !token) {
+          console.error('Uazapi channel missing configuration');
+          return;
+        }
+
+        if (mediaUrl && mediaType) {
+          await this.uazapiService.sendMediaMessage(
+            conversation.contactIdentifier,
+            mediaUrl,
+            mediaType,
+            message,
+            instanceId,
+            token,
+          );
+        } else {
+          await this.uazapiService.sendMessage(
+            conversation.contactIdentifier,
+            message,
+            instanceId,
+            token,
+          );
+        }
+        return;
+      }
+
+      const accessToken = config?.accessToken || channel.accessToken || undefined;
 
       if (!config?.phoneNumberId || !accessToken) {
         console.error('WhatsApp channel missing configuration');

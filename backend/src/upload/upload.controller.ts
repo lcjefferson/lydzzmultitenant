@@ -48,6 +48,7 @@ export class UploadController {
 
     return {
       filename: file.filename,
+      originalName: file.originalname,
       path: `/uploads/${file.filename}`,
       size: file.size,
       mimetype: file.mimetype,
@@ -68,7 +69,7 @@ export class UploadController {
         },
       }),
       limits: {
-        fileSize: 10 * 1024 * 1024, // 10MB
+        fileSize: 50 * 1024 * 1024, // 50MB
       },
     }),
   )

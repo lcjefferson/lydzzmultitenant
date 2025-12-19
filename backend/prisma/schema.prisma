@@ -106,6 +106,7 @@ model Agent {
 model Channel {
   id            String   @id @default(uuid())
   type          String   // whatsapp, instagram
+  provider      String   @default("whatsapp-official") // whatsapp-official, uazapi
   name          String
   identifier    String   // phone number or username
   accessToken   String?  @db.Text

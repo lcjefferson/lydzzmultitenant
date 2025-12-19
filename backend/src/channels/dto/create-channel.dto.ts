@@ -13,6 +13,11 @@ export class CreateChannelDto {
   type: string;
 
   @IsString()
+  @IsOptional()
+  @IsIn(['whatsapp-official', 'uazapi'])
+  provider?: string;
+
+  @IsString()
   @IsNotEmpty()
   name: string;
 

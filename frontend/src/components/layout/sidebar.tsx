@@ -20,14 +20,14 @@ import {
 import { Avatar } from '@/components/ui/avatar';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
-import { useSocket } from '@/hooks/use-socket';
+import { useConversations } from '@/hooks/api/use-conversations';
 
 const navigation = [
     {
         title: 'Principal',
         items: [
             { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-            { name: 'Conversas', href: '/conversations', icon: MessageSquare, badge: 5 },
+            { name: 'Conversas', href: '/conversations', icon: MessageSquare, badge: 'conversations' },
             { name: 'Chat Interno', href: '/chat', icon: MessageSquare },
             { name: 'Leads', href: '/leads', icon: Users },
         ],
@@ -59,55 +59,13 @@ export function Sidebar() {
     const [collapsed, setCollapsed] = useState(false);
     const { user, logout } = useAuth();
     const roleLabel = typeof user?.role === 'string' ? user.role : 'user';
-    const { onMessageCreated, offMessageCreated } = useSocket();
-    const [unread, setUnread] = useState(() => {
-        try {
-            const initial = Number(localStorage.getItem('unreadCount') || '0');
-            return Number.isNaN(initial) ? 0 : initial;
-        } catch {
-            return 0;
-        }
-    });
-
-    useEffect(() => {
-        const handleUpdate = (e: Event) => {
-            const ce = e as CustomEvent<number>;
-            const value = typeof ce.detail === 'number'
-                ? ce.detail
-                : (() => {
-                      try {
-                          const v = Number(localStorage.getItem('unreadCount') || '0');
-                          return Number.isNaN(v) ? 0 : v;
-                      } catch {
-                          return 0;
-                      }
-                  })();
-            setUnread(value);
-        };
-        window.addEventListener('unread:update', handleUpdate as EventListener);
-
-        const handleMessageCreated = (message: unknown) => {
-            const msg = message as { senderType?: string } | null;
-            if (msg?.senderType === 'contact') {
-                setUnread((c) => {
-                    const next = c + 1;
-                    try {
-                        localStorage.setItem('unreadCount', String(next));
-                    } catch {}
-                    return next;
-                });
-            }
-        };
-        onMessageCreated(handleMessageCreated);
-
-        return () => {
-            offMessageCreated(handleMessageCreated);
-            window.removeEventListener('unread:update', handleUpdate as EventListener);
-        };
-    }, [onMessageCreated, offMessageCreated]);
+    const { data: conversations } = useConversations();
 
     const role = (typeof user?.role === 'string' ? user.role : 'user').toLowerCase();
     const canAccess = (href: string) => {
+        // Debug logging
+        // console.log(`Checking access for ${href} with role ${role}`);
+        
         if (href === '/settings') {
             return role === 'admin';
         }
@@ -162,38 +120,51 @@ export function Sidebar() {
                                 {section.title}
                             </h3>
                         )}
-                        <ul className="space-y-1">
-                            {section.items.filter((item) => canAccess(item.href)).map((item) => {
+                        <div className="space-y-1">
+                            {section.items.map((item) => {
+                                const hasAccess = canAccess(item.href);
+                                if (!hasAccess) return null;
+
                                 const isActive = pathname === item.href;
-                                const Icon = item.icon;
+                                let badgeValue: number | string | undefined;
+
+                                if (item.badge === 'conversations') {
+                                    // Count active conversations
+                                    badgeValue = conversations?.filter(c => c.status !== 'closed').length;
+                                } else {
+                                    badgeValue = item.badge;
+                                }
 
                                 return (
-                                    <li key={item.name}>
-                                        <Link
-                                            href={item.href}
-                                            className={cn(
-                                                'sidebar-item',
-                                                isActive && 'sidebar-item-active',
-                                                collapsed && 'justify-center px-0'
-                                            )}
-                                            title={collapsed ? item.name : undefined}
-                                        >
-                                            <Icon className="h-5 w-5 flex-shrink-0" />
-                                            {!collapsed && (
-                                                <>
-                                                    <span className="flex-1">{item.name}</span>
-                                                    {item.name === 'Conversas' && unread > 0 && (
-                                                        <span className="bg-accent-primary text-white text-xs font-medium px-2 py-0.5 rounded-full">
-                                                            {unread}
-                                                        </span>
-                                                    )}
-                                                </>
-                                            )}
-                                        </Link>
-                                    </li>
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={cn(
+                                            'group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                                            isActive
+                                                ? 'bg-blue-50 text-blue-700'
+                                                : 'text-text-secondary hover:bg-surface hover:text-text-primary'
+                                        )}
+                                        title={collapsed ? item.name : undefined}
+                                    >
+                                        <item.icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-blue-700' : 'text-text-tertiary group-hover:text-text-primary')} />
+                                        {!collapsed && (
+                                            <span className="flex-1 truncate">
+                                                {item.name}
+                                            </span>
+                                        )}
+                                        {!collapsed && badgeValue && (typeof badgeValue === 'number' ? badgeValue > 0 : true) && (
+                                            <span className={cn(
+                                                'px-2 py-0.5 rounded-full text-xs font-medium',
+                                                isActive ? 'bg-blue-700 text-white' : 'bg-surface-active text-text-primary'
+                                            )}>
+                                                {badgeValue}
+                                            </span>
+                                        )}
+                                    </Link>
                                 );
                             })}
-                        </ul>
+                        </div>
                     </div>
                 ))}
             </nav>

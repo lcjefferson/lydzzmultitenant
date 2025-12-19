@@ -1,21 +1,22 @@
  'use client';
  
  import { cn } from '@/lib/utils';
- import { formatRelativeTime } from '@/lib/utils';
- import { useEffect, useState } from 'react';
- import { api } from '@/lib/api';
- 
- interface MessageBubbleProps {
-     type: 'contact' | 'ai' | 'user';
-     content: string;
-     timestamp: string;
-     senderName?: string;
-     confidence?: number;
-     messageType?: 'text' | 'image' | 'file' | 'audio';
-     attachments?: Record<string, unknown>;
- }
- 
- export function MessageBubble({ type, content, timestamp, senderName, confidence, messageType, attachments }: MessageBubbleProps) {
+import { formatRelativeTime } from '@/lib/utils';
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
+import { FileText } from 'lucide-react';
+
+interface MessageBubbleProps {
+    type: 'contact' | 'ai' | 'user';
+    content: string;
+    timestamp: string;
+    senderName?: string;
+    confidence?: number;
+    messageType?: 'text' | 'image' | 'file' | 'audio' | 'video';
+    attachments?: Record<string, unknown>;
+}
+
+export function MessageBubble({ type, content, timestamp, senderName, confidence, messageType, attachments }: MessageBubbleProps) {
      const bubbleStyles = {
          contact: 'chat-bubble-contact',
          ai: 'chat-bubble-ai',
@@ -35,15 +36,24 @@
          let objectUrl: string | null = null;
  
          async function loadMedia() {
-             if (!urlStr && !mediaIdStr) {
-                 setMediaSrc(null);
-                 return;
-             }
-             if (messageType === 'text') {
-                 setMediaSrc(null);
-                 return;
-             }
-             try {
+                if (!urlStr && !mediaIdStr) {
+                    setMediaSrc(null);
+                    return;
+                }
+                if (messageType === 'text') {
+                    setMediaSrc(null);
+                    return;
+                }
+
+                // Handle local uploads (static files)
+                if (urlStr && urlStr.startsWith('/uploads')) {
+                    const baseApi = String(api.api.defaults.baseURL || '');
+                    const root = baseApi.replace(/\/api\/?$/, '');
+                    setMediaSrc(`${root}${urlStr}`);
+                    return;
+                }
+
+                try {
                  setMediaLoading(true);
                  setMediaError(null);
                  const base = String(api.api.defaults.baseURL || '').replace(/\/$/, '');
@@ -79,12 +89,21 @@
              )}
              <div className={cn('chat-bubble', bubbleStyles[type])}>
                  {messageType === 'image' && mediaSrc ? (
-                     <img src={mediaSrc} alt="imagem" className="max-w-xs rounded-md" />
-                 ) : messageType === 'audio' && mediaSrc ? (
+                    <a href={mediaSrc} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+                        <img src={mediaSrc} alt="imagem" className="max-w-xs rounded-md hover:opacity-90 transition-opacity" />
+                    </a>
+                ) : messageType === 'video' && mediaSrc ? (
+                    <video controls src={mediaSrc} className="max-w-xs rounded-md" />
+                ) : messageType === 'audio' && mediaSrc ? (
                      <audio controls src={mediaSrc} className="w-64" />
                  ) : messageType === 'file' && mediaSrc ? (
-                     <a href={mediaSrc} target="_blank" rel="noreferrer" className="text-primary-600 underline">Abrir arquivo</a>
-                 ) : mediaLoading ? (
+                    <a href={mediaSrc} target="_blank" rel="noreferrer" className="text-primary-600 underline flex items-center gap-2 bg-neutral-50 p-2 rounded-md hover:bg-neutral-100 transition-colors">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="truncate max-w-[200px] text-sm font-medium">
+                            {(attachments as { name?: string })?.name || 'Abrir arquivo'}
+                        </span>
+                    </a>
+                ) : mediaLoading ? (
                      <p className="whitespace-pre-wrap opacity-70">Carregando mídia…</p>
                  ) : mediaError ? (
                      <p className="whitespace-pre-wrap opacity-70">Não foi possível carregar a mídia</p>

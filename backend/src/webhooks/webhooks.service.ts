@@ -90,6 +90,16 @@ export class WebhooksService {
     }
     return `${base}/api/webhooks/whatsapp`;
   }
+
+  async getUazapiWebhookUrl(): Promise<string | null> {
+    const base = await this.getPublicBaseUrl();
+    if (!base) {
+      const port = process.env.PORT || 3001;
+      return `http://localhost:${port}/api/webhooks/uazapi`;
+    }
+    return `${base}/api/webhooks/uazapi`;
+  }
+
   private async sendWebhook(
     webhook: Webhook,
     event: string,

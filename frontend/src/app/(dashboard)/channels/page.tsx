@@ -18,6 +18,7 @@ import {
     CheckCircle,
     XCircle,
     X,
+    Copy,
 } from 'lucide-react';
 import { useChannels, useChannel, useCreateChannel, useUpdateChannel, useDeleteChannel } from '@/hooks/api/use-channels';
 
@@ -35,11 +36,15 @@ export default function ChannelsPage() {
     const [formData, setFormData] = useState({
         name: '',
         type: 'whatsapp' as 'whatsapp' | 'instagram',
+        provider: 'whatsapp-official' as 'whatsapp-official' | 'uazapi',
         identifier: '',
         config: {},
     });
     const [waPhoneNumberId, setWaPhoneNumberId] = useState('');
     const [waAccessToken, setWaAccessToken] = useState('');
+    const [uazInstanceId, setUazInstanceId] = useState('');
+    const [uazToken, setUazToken] = useState('');
+    const [uazWebhookUrl, setUazWebhookUrl] = useState('');
 
     const { data: channels, isLoading } = useChannels();
     const { data: currentChannel } = useChannel(selectedChannel || '');
@@ -66,9 +71,16 @@ export default function ChannelsPage() {
     const handleCreateChannel = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await createChannel.mutateAsync(formData);
+            const payload = {
+                ...formData,
+                config:
+                    formData.type === 'whatsapp' && formData.provider === 'uazapi'
+                        ? { ...(formData.config || {}), provider: 'uazapi' }
+                        : formData.config,
+            };
+            await createChannel.mutateAsync(payload as any);
             setShowCreateModal(false);
-            setFormData({ name: '', type: 'whatsapp', identifier: '', config: {} });
+            setFormData({ name: '', type: 'whatsapp', provider: 'whatsapp-official', identifier: '', config: {} });
         } catch (error) {
             console.error('Error creating channel:', error);
         }
@@ -162,6 +174,12 @@ export default function ChannelsPage() {
                                                         const token = channel.accessToken || '';
                                                         setWaPhoneNumberId(phoneId);
                                                         setWaAccessToken(token);
+                                                        const inst = (cfg.instanceId as string) || '';
+                                                        const uTok = (cfg.token as string) || '';
+                                                        const uWebhook = (cfg.webhookUrl as string) || '';
+                                                        setUazInstanceId(inst);
+                                                        setUazToken(uTok);
+                                                        setUazWebhookUrl(uWebhook);
                                                     }
                                                 }}
                                             >
@@ -250,6 +268,19 @@ export default function ChannelsPage() {
                                         <option value="instagram">Instagram</option>
                                     </select>
                                 </div>
+                                {formData.type === 'whatsapp' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-2">Provider</label>
+                                        <select
+                                            value={formData.provider}
+                                            onChange={(e) => setFormData({ ...formData, provider: e.target.value as 'whatsapp-official' | 'uazapi' })}
+                                            className="input"
+                                        >
+                                            <option value="whatsapp-official">WhatsApp Oficial</option>
+                                            <option value="uazapi">Uazapi</option>
+                                        </select>
+                                    </div>
+                                )}
 
                                 <div className="flex gap-2 pt-4">
                                     <Button type="submit" className="flex-1" isLoading={createChannel.isPending}>
@@ -323,6 +354,15 @@ export default function ChannelsPage() {
                                             <p className="text-sm text-text-tertiary mb-1">Tipo</p>
                                             <p className="text-sm font-medium capitalize">{channel.type}</p>
                                         </div>
+                                        {channel.type === 'whatsapp' && (
+                                            <div>
+                                                <p className="text-sm text-text-tertiary mb-1">Provider</p>
+                                                <p className="text-sm font-medium">
+                                                    {(channel as any).provider ??
+                                                        (String(((channel.config as Record<string, unknown>)?.provider) ?? 'whatsapp-official'))}
+                                                </p>
+                                            </div>
+                                        )}
                                         <div>
                                             <p className="text-sm text-text-tertiary mb-1">Identificador</p>
                                             <p className="text-sm font-medium">{channel.identifier}</p>
@@ -336,7 +376,7 @@ export default function ChannelsPage() {
                                     </div>
 
                                     {/* WhatsApp Configuration */}
-                                    {channel.type === 'whatsapp' && (
+                                    {channel.type === 'whatsapp' && channel.provider === 'whatsapp-official' && (
                                         <div className="border border-border rounded-lg p-4 space-y-4">
                                             <h3 className="font-semibold flex items-center gap-2">
                                                 <MessageCircle className="h-5 w-5 text-success" />
@@ -459,6 +499,89 @@ export default function ChannelsPage() {
                                                                 });
                                                             } catch (error) {
                                                                 console.error('Error updating WhatsApp config:', error);
+                                                            }
+                                                        }}
+                                                        isLoading={updateChannel.isPending}
+                                                    >
+                                                        Salvar Configuração
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {channel.type === 'whatsapp' && channel.provider === 'uazapi' && (
+                                        <div className="border border-border rounded-lg p-4 space-y-4">
+                                            <h3 className="font-semibold flex items-center gap-2">
+                                                <MessageCircle className="h-5 w-5 text-success" />
+                                                Configuração Uazapi
+                                            </h3>
+
+                                            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-md mb-4 border border-blue-100 dark:border-blue-800">
+                                                <p className="text-sm text-blue-800 dark:text-blue-200 mb-2 font-medium">
+                                                    Configure esta URL de Webhook no painel da Uazapi:
+                                                </p>
+                                                <div className="flex gap-2 items-center">
+                                                    <code className="flex-1 bg-white dark:bg-black/20 p-2 rounded text-xs break-all border border-blue-200 dark:border-blue-800">
+                                                        {webhookData?.uazapiWebhookUrl || 'Carregando...'}
+                                                    </code>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            if (webhookData?.uazapiWebhookUrl) {
+                                                                navigator.clipboard.writeText(webhookData.uazapiWebhookUrl);
+                                                            }
+                                                        }}
+                                                        title="Copiar URL"
+                                                    >
+                                                        <Copy className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Webhook URL</label>
+                                                    <Input
+                                                        value={uazWebhookUrl}
+                                                        onChange={(e) => setUazWebhookUrl(e.target.value)}
+                                                        placeholder="https://your-webhook-url.com/api/webhooks/uazapi"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Instance ID</label>
+                                                    <Input
+                                                        placeholder="Ex: abc123"
+                                                        value={uazInstanceId}
+                                                        onChange={(e) => setUazInstanceId(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Token</label>
+                                                    <Input
+                                                        type="password"
+                                                        placeholder="Token da instância"
+                                                        value={uazToken}
+                                                        onChange={(e) => setUazToken(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2 pt-2">
+                                                    <Button
+                                                        onClick={async () => {
+                                                            try {
+                                                                await updateChannel.mutateAsync({
+                                                                    id: channel.id,
+                                                                    data: {
+                                                                        config: {
+                                                                            ...((channel.config || {}) as Record<string, unknown>),
+                                                                            instanceId: uazInstanceId,
+                                                                            token: uazToken,
+                                                                            webhookUrl: uazWebhookUrl,
+                                                                        },
+                                                                    },
+                                                                });
+                                                            } catch (error) {
+                                                                console.error('Error updating Uazapi config:', error);
                                                             }
                                                         }}
                                                         isLoading={updateChannel.isPending}

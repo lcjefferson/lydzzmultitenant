@@ -14,7 +14,7 @@ export class CreateMessageDto {
 
   @IsString()
   @IsOptional()
-  @IsEnum(['text', 'image', 'file', 'audio'])
+  @IsEnum(['text', 'image', 'file', 'audio', 'video'])
   type?: string;
 
   @IsString()

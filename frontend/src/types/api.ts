@@ -43,6 +43,7 @@ export interface Agent {
 export interface Channel {
     id: string;
     type: 'whatsapp' | 'instagram' | 'facebook' | 'email' | 'internal';
+    provider: 'whatsapp-official' | 'uazapi';
     name: string;
     identifier: string;
     accessToken?: string;
@@ -172,6 +173,7 @@ export interface CreateAgentDto {
 
 export interface CreateChannelDto {
     type: 'whatsapp' | 'instagram';
+    provider?: 'whatsapp-official' | 'uazapi';
     name: string;
     identifier: string;
     accessToken?: string;
@@ -188,7 +190,7 @@ export interface CreateConversationDto {
 
 export interface CreateMessageDto {
     conversationId: string;
-    type?: 'text' | 'image' | 'file' | 'audio';
+    type?: 'text' | 'image' | 'file' | 'audio' | 'video';
     content: string;
     senderType: 'contact' | 'ai' | 'user';
     confidence?: number;

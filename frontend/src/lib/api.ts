@@ -261,8 +261,8 @@ class ApiService {
         await this.api.delete(`/channels/${id}`);
     }
 
-    async getWhatsAppWebhookUrl(): Promise<{ webhookUrl: string | null }> {
-        const response = await this.api.get<{ webhookUrl: string | null }>(
+    async getWhatsAppWebhookUrl(): Promise<{ webhookUrl: string | null; uazapiWebhookUrl: string | null }> {
+        const response = await this.api.get<{ webhookUrl: string | null; uazapiWebhookUrl: string | null }>(
             '/webhooks/url'
         );
         return response.data;
@@ -328,6 +328,19 @@ class ApiService {
 
     async deleteMessage(id: string): Promise<void> {
         await this.api.delete(`/messages/${id}`);
+    }
+
+    // Upload
+    async uploadFile(file: File): Promise<{ path: string; filename: string; originalName: string; mimetype: string }> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const endpoint = file.type.startsWith('image/') ? '/upload/image' : '/upload/file';
+        const response = await this.api.post(endpoint, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
     }
 
     // Leads

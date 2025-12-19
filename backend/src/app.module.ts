@@ -20,6 +20,7 @@ import { UploadModule } from './upload/upload.module';
 import { CommonModule } from './common/common.module';
 import { InternalModule } from './internal/internal.module';
 import { MediaModule } from './media/media.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { MediaModule } from './media/media.module';
     UploadModule,
     InternalModule,
     MediaModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

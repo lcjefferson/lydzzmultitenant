@@ -16,9 +16,27 @@ export class ChannelsService {
       });
     }
 
+    const provider = dto.provider ?? 'whatsapp-official';
+    const baseConfig =
+      typeof dto.config === 'object' && dto.config !== null ? dto.config : {};
+    const mergedConfig =
+      dto.type === 'whatsapp' && provider === 'uazapi'
+        ? {
+            ...baseConfig,
+            instanceId:
+              (baseConfig as Record<string, unknown>)?.['instanceId'] ?? '',
+            token: (baseConfig as Record<string, unknown>)?.['token'] ?? '',
+          }
+        : baseConfig;
+
     return this.prisma.channel.create({
       data: {
-        ...dto,
+        type: dto.type,
+        name: dto.name,
+        identifier: dto.identifier,
+        accessToken: dto.accessToken,
+        config: mergedConfig,
+        status: dto.status,
         organizationId: organization.id,
       },
     });
