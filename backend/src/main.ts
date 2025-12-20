@@ -12,24 +12,7 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allowed?: boolean) => void,
-    ) => {
-      const isDev = (process.env.NODE_ENV || 'development') !== 'production';
-      if (isDev) {
-        callback(null, true);
-        return;
-      }
-      const allowed = [process.env.FRONTEND_URL, process.env.APP_URL].filter(
-        Boolean,
-      ) as string[];
-      if (!origin || allowed.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: true, // Allow all origins for now to fix connection issues on VPS
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
