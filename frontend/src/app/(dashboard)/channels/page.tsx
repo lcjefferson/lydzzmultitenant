@@ -303,7 +303,7 @@ export default function ChannelsPage() {
             {/* Delete Confirmation Modal */}
             {channelToDelete && (
                 <div
-                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1000]"
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1100]"
                     onClick={() => setChannelToDelete(null)}
                 >
                     <Card className="w-full max-w-md p-6 bg-white text-neutral-900" onClick={(e) => e.stopPropagation()}>
