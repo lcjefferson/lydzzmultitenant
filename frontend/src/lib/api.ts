@@ -330,6 +330,13 @@ class ApiService {
         await this.api.delete(`/messages/${id}`);
     }
 
+    async syncMessages(conversationId: string): Promise<number> {
+        const response = await this.api.post<{ count: number } | number>(`/messages/${conversationId}/sync`);
+        // O backend retorna um number diretamente no service, mas o NestJS pode serializar.
+        // Se retornar numero puro: response.data será numero.
+        return typeof response.data === 'number' ? response.data : (response.data as any).count || 0;
+    }
+
     // Upload
     async uploadFile(file: File): Promise<{ path: string; filename: string; originalName: string; mimetype: string }> {
         const formData = new FormData();

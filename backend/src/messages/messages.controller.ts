@@ -32,6 +32,11 @@ export class MessagesController {
     return this.messagesService.findOne(id);
   }
 
+  @Post(':conversationId/sync')
+  syncMessages(@Param('conversationId') conversationId: string) {
+    return this.messagesService.syncMessages(conversationId);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.messagesService.remove(id);
