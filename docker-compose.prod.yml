@@ -67,7 +67,6 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
       # Uazapi Integration
       UAZAPI_API_URL: ${UAZAPI_API_URL}
-      UAZAPI_INSTANCE_ID: ${UAZAPI_INSTANCE_ID}
       UAZAPI_INSTANCE_TOKEN: ${UAZAPI_INSTANCE_TOKEN}
     ports:
       - "3000:3000"

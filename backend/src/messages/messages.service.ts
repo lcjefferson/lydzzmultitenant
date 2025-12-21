@@ -480,22 +480,20 @@ export class MessagesService {
             })
           : null;
 
-      const envInstanceId = this.configService.get<string>('UAZAPI_INSTANCE_ID');
       const envToken = this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
 
       const provider =
         (channel as unknown as { provider?: string }).provider ??
         (config?.provider ?? 
-          ((config?.instanceId && config?.token) || (envInstanceId && envToken) ? 'uazapi' : 'whatsapp-official'));
+          ((config?.token) || (envToken) ? 'uazapi' : 'whatsapp-official'));
 
       console.log(`Sending message via provider: ${provider}, to: ${conversation.contactIdentifier}`);
 
       if (provider === 'uazapi') {
-        const instanceId = config?.instanceId ?? envInstanceId;
         const token = config?.token ?? envToken;
-        console.log(`Uazapi config - Instance: ${instanceId}, Token: ${token ? '***' : 'missing'}`);
+        console.log(`Uazapi config - Token: ${token ? '***' : 'missing'}`);
         
-        if (!instanceId || !token) {
+        if (!token) {
           console.error('Uazapi channel missing configuration');
           return;
         }
@@ -506,14 +504,12 @@ export class MessagesService {
             mediaUrl,
             mediaType,
             message,
-            instanceId,
             token,
           );
         } else {
           await this.uazapiService.sendMessage(
             conversation.contactIdentifier,
             message,
-            instanceId,
             token,
           );
         }

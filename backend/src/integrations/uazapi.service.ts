@@ -26,7 +26,6 @@ export class UazapiService {
   async sendMessage(
     to: string,
     message: string,
-    instanceId: string,
     token: string,
   ): Promise<boolean> {
     try {
