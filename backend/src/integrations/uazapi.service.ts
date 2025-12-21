@@ -201,7 +201,8 @@ export class UazapiService {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'token': token,
-            }
+            },
+            timeout: 15000 // 15s timeout
         });
 
         this.logger.log(`Download media response status: ${response.status}`);
@@ -232,7 +233,7 @@ export class UazapiService {
              try {
                  const linkResponse = await axios.get(response.data.link, { 
                      responseType: 'arraybuffer',
-                     timeout: 10000 
+                     timeout: 15000 
                  });
                  const buffer = Buffer.from(linkResponse.data);
                  const mimetype = linkResponse.headers['content-type'] || response.data.mimetype || 'application/octet-stream';
@@ -247,16 +248,23 @@ export class UazapiService {
              }
         }
         
-        this.logger.warn(`Download media response missing base64 and link. Data keys: ${Object.keys(response.data || {}).join(', ')}`);
+        this.logger.error(`Download media response missing base64 and link. Data keys: ${Object.keys(response.data || {}).join(', ')}`);
         if (response.data) {
-             this.logger.warn(`Response data: ${JSON.stringify(response.data)}`);
+             this.logger.error(`Response data: ${JSON.stringify(response.data)}`);
         }
         
 
         return null;
     } catch (error) {
         const err = error as any;
-        this.logger.error(`Error downloading media from Uazapi: ${err.message}`);
+        const targetUrl = `${this.apiUrl}/message/download`;
+        this.logger.error(`Error downloading media from Uazapi [${targetUrl}]: ${err.message}`);
+        
+        // Log connection details for debugging
+        if (err.code === 'ECONNREFUSED') {
+             this.logger.error(`Connection refused! Check if UAZAPI_API_URL (${this.apiUrl}) is correct and reachable from inside the docker container.`);
+        }
+        
         if (err.response) {
             this.logger.error(`Uazapi error response status: ${err.response.status}`);
             this.logger.error(`Uazapi error response data: ${JSON.stringify(err.response.data)}`);
