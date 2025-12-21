@@ -176,7 +176,6 @@ export class UazapiService {
   async downloadMedia(
     messageId: string,
     token: string,
-    openaiApiKey?: string
   ): Promise<{ buffer: Buffer; mimetype: string; filename?: string } | null> {
     if (!token) {
         this.logger.error('Download media failed: No token provided');
@@ -192,7 +191,6 @@ export class UazapiService {
             generate_mp3: false,
             return_link: false,
             transcribe: false,
-            openai_apikey: openaiApiKey || '',
             download_quoted: false
         };
 
