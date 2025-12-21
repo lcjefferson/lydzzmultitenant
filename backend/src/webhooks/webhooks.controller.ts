@@ -506,7 +506,7 @@ export class WebhooksController {
                         filename = filename || downloaded.filename;
                         this.logger.log(`Media downloaded successfully: ${mimetype} (${buffer.length} bytes)`);
                     } else {
-                        this.logger.error(`Failed to download media for message ${incomingMessage.messageId}. This usually means the media is expired, the token is invalid, or the message structure is not supported by the gateway.`);
+                        this.logger.warn(`Failed to download media for message ${incomingMessage.messageId} using token. Will attempt fallback to URL if available.`);
                     }
                  } else {
                      this.logger.warn(`No token found for media download (Channel config or ENV) for message ${incomingMessage.messageId}`);

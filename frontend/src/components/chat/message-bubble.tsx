@@ -58,9 +58,9 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
 
               // Handle local uploads (static files)
               if (urlStr && urlStr.startsWith('/uploads')) {
-                  const baseApi = String(api.api.defaults.baseURL || '');
-                  const root = baseApi.replace(/\/api\/?$/, '');
-                  const fullUrl = `${root}${urlStr}`;
+                  // Use relative URL to leverage Next.js rewrites (proxies to backend)
+                  // This avoids CORS and port issues
+                  const relativeUrl = urlStr;
 
                   // Special handling for audio: fetch as blob to ensure duration works
                   // This fixes the "0 seconds" bug on reload
@@ -70,13 +70,17 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
                               setMediaLoading(true);
                               setMediaError(null);
                           }
-                          const response = await api.api.get(fullUrl, { responseType: 'blob' });
+                          // Use fetch for static files (proxied by Next.js)
+                          const response = await fetch(relativeUrl);
+                          if (!response.ok) throw new Error('Failed to load audio');
+                          
+                          const blob = await response.blob();
                           if (!isMounted) return;
                           
-                          const blob = response.data as Blob;
                           objectUrl = URL.createObjectURL(blob);
                           setMediaSrc(objectUrl);
-                      } catch {
+                      } catch (err) {
+                          console.error('Error loading audio:', err);
                           if (isMounted) {
                               setMediaError('Erro no arquivo');
                               setMediaSrc(null);
@@ -88,7 +92,7 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
                   }
 
                   if (isMounted) {
-                      setMediaSrc(fullUrl);
+                      setMediaSrc(relativeUrl);
                       setMediaLoading(false); // Local files don't need async fetch to get URL
                   }
                   return;
