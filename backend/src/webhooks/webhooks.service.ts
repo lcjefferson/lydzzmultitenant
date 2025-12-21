@@ -62,9 +62,9 @@ export class WebhooksService {
   }
 
   async getPublicBaseUrl(): Promise<string | null> {
-    const envUrl = process.env.PUBLIC_URL || process.env.NGROK_URL;
+    const envUrl = process.env.APP_URL || process.env.PUBLIC_URL || process.env.NGROK_URL;
     if (envUrl) {
-      return envUrl;
+      return envUrl.replace(/\/$/, '');
     }
     try {
       const res = await firstValueFrom(
