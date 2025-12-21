@@ -73,7 +73,6 @@ export class UazapiService {
     mediaUrl: string,
     mediaType: 'image' | 'video' | 'audio' | 'document',
     caption: string,
-    instanceId: string,
     token: string,
   ): Promise<boolean> {
     try {
