@@ -518,9 +518,14 @@ export class WebhooksController {
                  try {
                      this.logger.log(`Attempting to download media from URL: ${incomingMessage.media.url}`);
                      const response = await axios.get(incomingMessage.media.url, { responseType: 'arraybuffer' });
-                     buffer = Buffer.from(response.data);
-                     mimetype = response.headers['content-type'] || mimetype;
-                     this.logger.log(`Downloaded media from URL. Size: ${buffer.length}`);
+                     const contentType = response.headers['content-type'];
+                     if (contentType && (contentType.includes('text/html') || contentType.includes('application/json') || contentType.includes('text/plain'))) {
+                         this.logger.warn(`Downloaded content from URL is ${contentType}, likely an error page or expired link. Discarding.`);
+                     } else {
+                         buffer = Buffer.from(response.data);
+                         mimetype = contentType || mimetype;
+                         this.logger.log(`Downloaded media from URL. Size: ${buffer.length}, Type: ${mimetype}`);
+                     }
                  } catch (err) {
                      this.logger.error(`Failed to download media from URL: ${incomingMessage.media.url}`, err);
                  }

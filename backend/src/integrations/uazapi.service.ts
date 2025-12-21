@@ -227,6 +227,11 @@ export class UazapiService {
                 mimetype,
                 filename: response.data.filename
             };
+        } else {
+             this.logger.warn(`Download media response missing base64. Data keys: ${Object.keys(response.data || {}).join(', ')}`);
+             if (response.data) {
+                 this.logger.warn(`Response data snippet: ${JSON.stringify(response.data).substring(0, 200)}`);
+             }
         }
 
         return null;
