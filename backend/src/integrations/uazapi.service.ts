@@ -207,41 +207,45 @@ export class UazapiService {
 
         this.logger.log(`Download media response status: ${response.status}`);
 
-        if (response.data && response.data.base64) {
-            this.logger.log(`Download media success. Base64 length: ${response.data.base64.length}`);
+        // Handle case where Uazapi returns data with keys like base64Data, fileURL, etc.
+        const responseData = response.data as any;
+        const base64Data = responseData.base64 || responseData.base64Data;
+        
+        if (base64Data) {
+            this.logger.log(`Download media success. Base64 length: ${base64Data.length}`);
             // Check if base64 has prefix
-            const base64Str = response.data.base64;
-            const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+            const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
             
             let buffer: Buffer;
-            let mimetype = response.data.mimetype || 'application/octet-stream';
+            let mimetype = responseData.mimetype || 'application/octet-stream';
             
             if (matches && matches.length === 3) {
                 mimetype = matches[1];
                 buffer = Buffer.from(matches[2], 'base64');
             } else {
-                buffer = Buffer.from(base64Str, 'base64');
+                buffer = Buffer.from(base64Data, 'base64');
             }
             
             return {
                 buffer,
                 mimetype,
-                filename: response.data.filename
+                filename: responseData.filename
             };
-        } else if (response.data && response.data.link) {
-             this.logger.log(`Base64 missing, attempting to download from link: ${response.data.link}`);
+        } else if (responseData.link || responseData.fileURL) {
+             const link = responseData.link || responseData.fileURL;
+             this.logger.log(`Base64 missing, attempting to download from link: ${link}`);
              try {
-                 const linkResponse = await axios.get(response.data.link, { 
+                 const linkResponse = await axios.get(link, { 
                      responseType: 'arraybuffer',
                      timeout: 15000 
                  });
                  const buffer = Buffer.from(linkResponse.data);
-                 const mimetype = linkResponse.headers['content-type'] || response.data.mimetype || 'application/octet-stream';
+                 const mimetype = linkResponse.headers['content-type'] || responseData.mimetype || 'application/octet-stream';
                  this.logger.log(`Downloaded media from link. Size: ${buffer.length}`);
                  return {
                      buffer,
                      mimetype,
-                     filename: response.data.filename
+                     filename: responseData.filename
                  };
              } catch (linkError) {
                  this.logger.error(`Failed to download from link: ${(linkError as Error).message}`);
