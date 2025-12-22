@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Request } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -8,8 +8,12 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('dashboard')
-  getDashboardMetrics() {
-    return this.analyticsService.getDashboardMetrics();
+  getDashboardMetrics(@Request() req) {
+    return this.analyticsService.getDashboardMetrics(
+      req.user.id,
+      req.user.role,
+      req.user.organizationId,
+    );
   }
 
   @Get('conversations')

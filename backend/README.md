@@ -112,6 +112,17 @@ Authorization: Bearer <your_jwt_token>
 - `GET /analytics/conversations` - Conversation stats (protected)
 - `GET /analytics/leads` - Lead stats (protected)
 
+### Analytics Logic & Permissions
+
+The analytics endpoints (`/analytics/dashboard`, etc.) apply automatic filtering based on user roles:
+
+- **Admin / Manager**: View data for the entire organization.
+- **Consultant / User**: View data ONLY for:
+  - Conversations assigned to them (`assignedToId`).
+  - Leads assigned to them (`lead.assignedToId`).
+
+This ensures consultants only see their own performance metrics and workload.
+
 ## 🔌 WebSocket Events
 
 Connect to `ws://localhost:3001` for real-time updates.

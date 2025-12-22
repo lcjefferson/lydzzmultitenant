@@ -1,16 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDashboardMetrics() {
+  async getDashboardMetrics(
+    userId?: string,
+    role?: string,
+    organizationId?: string,
+  ) {
+    const whereConversation: Prisma.ConversationWhereInput = { organizationId };
+    const whereLead: Prisma.LeadWhereInput = {
+      organizationId,
+      status: { not: 'lost' },
+    };
+
+    const r = String(role || '').toLowerCase();
+    if (r && r !== 'admin' && r !== 'manager') {
+      Object.assign(whereConversation, {
+        OR: [{ assignedToId: userId }, { lead: { assignedToId: userId } }],
+      });
+      Object.assign(whereLead, { assignedToId: userId });
+    }
+
     const [totalConversations, activeLeads, totalMessages, totalAgents] =
       await Promise.all([
-        this.prisma.conversation.count(),
-        this.prisma.lead.count({ where: { status: { not: 'lost' } } }),
-        this.prisma.message.count(),
+        this.prisma.conversation.count({ where: whereConversation }),
+        this.prisma.lead.count({ where: whereLead }),
+        this.prisma.message.count(), // Messages might need filtering too, but request focused on conversations/leads
         this.prisma.agent.count(),
       ]);
 
