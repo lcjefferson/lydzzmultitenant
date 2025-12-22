@@ -515,28 +515,19 @@ export class WebhooksController {
 
              // If buffer is still null, but we have a URL (e.g. from FileDownloaded event), try to download from URL
              if (!buffer && incomingMessage.media.url && incomingMessage.media.url.startsWith('http')) {
-                 // Check if URL is a direct WhatsApp media URL (mmg.whatsapp.net, etc.)
-                 // These URLs usually return encrypted binaries (enc) which are useless without decryption key
-                 const isWhatsAppUrl = incomingMessage.media.url.includes('whatsapp.net') || 
-                                      incomingMessage.media.url.includes('fbcdn.net');
-                 
-                 if (isWhatsAppUrl) {
-                     this.logger.warn(`Skipping direct download from WhatsApp URL: ${incomingMessage.media.url}. Content is likely encrypted.`);
-                 } else {
-                     try {
-                         this.logger.log(`Attempting to download media from URL: ${incomingMessage.media.url}`);
-                         const response = await axios.get(incomingMessage.media.url, { responseType: 'arraybuffer' });
-                         const contentType = response.headers['content-type'];
-                         if (contentType && (contentType.includes('text/html') || contentType.includes('application/json') || contentType.includes('text/plain'))) {
-                             this.logger.warn(`Downloaded content from URL is ${contentType}, likely an error page or expired link. Discarding.`);
-                         } else {
-                             buffer = Buffer.from(response.data);
-                             mimetype = contentType || mimetype;
-                             this.logger.log(`Downloaded media from URL. Size: ${buffer.length}, Type: ${mimetype}`);
-                         }
-                     } catch (err) {
-                         this.logger.error(`Failed to download media from URL: ${incomingMessage.media.url}`, err);
+                 try {
+                     this.logger.log(`Attempting to download media from URL: ${incomingMessage.media.url}`);
+                     const response = await axios.get(incomingMessage.media.url, { responseType: 'arraybuffer' });
+                     const contentType = response.headers['content-type'];
+                     if (contentType && (contentType.includes('text/html') || contentType.includes('application/json') || contentType.includes('text/plain'))) {
+                         this.logger.warn(`Downloaded content from URL is ${contentType}, likely an error page or expired link. Discarding.`);
+                     } else {
+                         buffer = Buffer.from(response.data);
+                         mimetype = contentType || mimetype;
+                         this.logger.log(`Downloaded media from URL. Size: ${buffer.length}, Type: ${mimetype}`);
                      }
+                 } catch (err) {
+                     this.logger.error(`Failed to download media from URL: ${incomingMessage.media.url}`, err);
                  }
              }
 
