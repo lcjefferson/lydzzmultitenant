@@ -37,7 +37,9 @@ export class MessagesService {
         }
 
         const channelConfig = conversation.channel.config as any;
-        const token = channelConfig?.token || this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
+        const token = channelConfig?.token || channelConfig?.instanceToken || this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
+        const serverUrl = channelConfig?.serverUrl;
+
         if (!token) {
             this.logger.error('No Uazapi token found for sync');
             return 0;
@@ -48,7 +50,7 @@ export class MessagesService {
 
         this.logger.log(`Syncing messages for chat ${chatId} using token ${token.slice(0, 10)}...`);
 
-        const uazapiMessages = await this.uazapiService.findMessages(chatId, 50, 0, token);
+        const uazapiMessages = await this.uazapiService.findMessages(chatId, 50, 0, token, serverUrl);
 
         if (!uazapiMessages || !Array.isArray(uazapiMessages)) {
             this.logger.log(`No messages found for chat ${chatId}`);
@@ -121,10 +123,10 @@ export class MessagesService {
                     (!existing.attachments || Object.keys(existing.attachments as object).length === 0)) {
                     
                     let attachments: any = undefined;
-                    if (msg.message?.imageMessage) attachments = await this.processSyncedMedia(msg, 'image', token);
-                    else if (msg.message?.videoMessage) attachments = await this.processSyncedMedia(msg, 'video', token);
-                    else if (msg.message?.audioMessage) attachments = await this.processSyncedMedia(msg, 'audio', token);
-                    else if (msg.message?.documentMessage) attachments = await this.processSyncedMedia(msg, 'document', token);
+                    if (msg.message?.imageMessage) attachments = await this.processSyncedMedia(msg, 'image', token, serverUrl);
+                    else if (msg.message?.videoMessage) attachments = await this.processSyncedMedia(msg, 'video', token, serverUrl);
+                    else if (msg.message?.audioMessage) attachments = await this.processSyncedMedia(msg, 'audio', token, serverUrl);
+                    else if (msg.message?.documentMessage) attachments = await this.processSyncedMedia(msg, 'document', token, serverUrl);
 
                     if (attachments) {
                          this.logger.log(`Backfilled media for message ${existing.id}`);
@@ -144,16 +146,16 @@ export class MessagesService {
             
             if (msg.message?.imageMessage) {
                 type = 'image';
-                attachments = await this.processSyncedMedia(msg, 'image', token);
+                attachments = await this.processSyncedMedia(msg, 'image', token, serverUrl);
             } else if (msg.message?.videoMessage) {
                 type = 'video';
-                attachments = await this.processSyncedMedia(msg, 'video', token);
+                attachments = await this.processSyncedMedia(msg, 'video', token, serverUrl);
             } else if (msg.message?.audioMessage) {
                 type = 'audio';
-                attachments = await this.processSyncedMedia(msg, 'audio', token);
+                attachments = await this.processSyncedMedia(msg, 'audio', token, serverUrl);
             } else if (msg.message?.documentMessage) {
                 type = 'file';
-                attachments = await this.processSyncedMedia(msg, 'document', token);
+                attachments = await this.processSyncedMedia(msg, 'document', token, serverUrl);
             }
 
             await this.create({
@@ -178,7 +180,7 @@ export class MessagesService {
     }
   }
 
-  private async processSyncedMedia(msg: any, type: string, token: string): Promise<any> {
+  private async processSyncedMedia(msg: any, type: string, token: string, serverUrl?: string): Promise<any> {
       try {
         const messageId = msg.key?.id;
         if (!messageId) return undefined;
@@ -191,7 +193,7 @@ export class MessagesService {
         // Usually url in message object is internal WhatsApp URL, not accessible.
         // So we must download.
         
-        const downloaded = await this.uazapiService.downloadMedia(messageId, token);
+        const downloaded = await this.uazapiService.downloadMedia(messageId, token, serverUrl);
         if (!downloaded) return undefined;
 
         const ext = downloaded.mimetype ? downloaded.mimetype.split('/')[1].replace('; codecs=opus', '') : 'bin';

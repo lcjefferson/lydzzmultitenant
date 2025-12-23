@@ -27,10 +27,12 @@ export class UazapiService {
     to: string,
     message: string,
     token: string,
+    serverUrl?: string,
   ): Promise<boolean> {
     try {
       // Endpoint identified via user documentation
-      const url = `${this.apiUrl}/send/text`;
+      const baseUrl = serverUrl || this.apiUrl;
+      const url = `${baseUrl}/send/text`;
       
       // Sanitize number: remove non-digits and suffixes
       const cleanNumber = to.replace(/\D/g, '');
@@ -50,6 +52,7 @@ export class UazapiService {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'token': token, // Token identifies the instance
+            'apikey': token, // Some versions might use apikey
           },
         },
       );
@@ -128,6 +131,7 @@ export class UazapiService {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
             'token': token,
+            'apikey': token,
           },
         },
       );
@@ -178,6 +182,7 @@ export class UazapiService {
   async downloadMedia(
     messageId: string,
     token: string,
+    serverUrl?: string,
   ): Promise<{ buffer: Buffer; mimetype: string; filename?: string } | null> {
     if (!token) {
         this.logger.error('Download media failed: No token provided');
@@ -186,7 +191,8 @@ export class UazapiService {
 
     try {
         this.logger.log(`Attempting to download media for message ${messageId}`);
-        const url = `${this.apiUrl}/message/download`;
+        const baseUrl = serverUrl || this.apiUrl;
+        const url = `${baseUrl}/message/download`;
         const payload = {
             id: messageId,
             return_base64: true, // Request base64 directly
@@ -201,6 +207,7 @@ export class UazapiService {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'token': token,
+                'apikey': token,
             },
             timeout: 15000 // 15s timeout
         });
@@ -282,10 +289,12 @@ export class UazapiService {
     chatId: string,
     limit: number = 20,
     offset: number = 0,
-    token: string
+    token: string,
+    serverUrl?: string,
   ): Promise<any[]> {
     try {
-        const url = `${this.apiUrl}/message/find`;
+        const baseUrl = serverUrl || this.apiUrl;
+        const url = `${baseUrl}/message/find`;
         const payload = {
             chatid: chatId,
             limit,
@@ -297,6 +306,7 @@ export class UazapiService {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'token': token,
+                'apikey': token,
             }
         });
 

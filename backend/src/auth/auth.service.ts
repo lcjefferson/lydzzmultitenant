@@ -81,6 +81,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
+    console.log('Login attempt:', JSON.stringify(dto));
     const useMock =
       (this.configService.get<string>('USE_MOCK_AUTH') || 'false') === 'true';
     if (useMock) {

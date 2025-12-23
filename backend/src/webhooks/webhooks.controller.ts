@@ -492,14 +492,15 @@ export class WebhooksController {
              } 
              // If we have no base64 but have mediaKey/messageId, try to download
              else if (incomingMessage.messageId) {
-                 const cfg = (channel?.config && typeof channel.config === 'object' ? channel.config : {}) as { token?: string };
+                 const cfg = (channel?.config && typeof channel.config === 'object' ? channel.config : {}) as { token?: string; serverUrl?: string };
                  const token = cfg.token || process.env.UAZAPI_INSTANCE_TOKEN;
+                 const serverUrl = cfg.serverUrl;
                  
-                 this.logger.log(`Processing media for message ${incomingMessage.messageId}. Token available: ${!!token}`);
+                 this.logger.log(`Processing media for message ${incomingMessage.messageId}. Token available: ${!!token}, Server URL: ${serverUrl || 'default'}`);
 
                  if (token) {
                     this.logger.log(`Attempting to download media for message ${incomingMessage.messageId} using token ${token.substring(0, 5)}...`);
-                    const downloaded = await this.uazapiService.downloadMedia(incomingMessage.messageId, token);
+                    const downloaded = await this.uazapiService.downloadMedia(incomingMessage.messageId, token, serverUrl);
                     if (downloaded) {
                         buffer = downloaded.buffer;
                         mimetype = downloaded.mimetype;

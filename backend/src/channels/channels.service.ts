@@ -23,9 +23,10 @@ export class ChannelsService {
       dto.type === 'whatsapp' && provider === 'uazapi'
         ? {
             ...baseConfig,
-            instanceId:
-              (baseConfig as Record<string, unknown>)?.['instanceId'] ?? '',
-            token: (baseConfig as Record<string, unknown>)?.['token'] ?? '',
+            serverUrl: (baseConfig as Record<string, unknown>)?.['serverUrl'] ?? '',
+            instanceToken: (baseConfig as Record<string, unknown>)?.['instanceToken'] ?? '',
+            // Keep existing fields for compatibility if needed, or map them
+            token: (baseConfig as Record<string, unknown>)?.['instanceToken'] ?? (baseConfig as Record<string, unknown>)?.['token'] ?? '',
           }
         : baseConfig;
 

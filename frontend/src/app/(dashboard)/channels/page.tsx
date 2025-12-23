@@ -42,8 +42,8 @@ export default function ChannelsPage() {
     });
     const [waPhoneNumberId, setWaPhoneNumberId] = useState('');
     const [waAccessToken, setWaAccessToken] = useState('');
-    const [uazInstanceId, setUazInstanceId] = useState('');
-    const [uazToken, setUazToken] = useState('');
+    const [uazServerUrl, setUazServerUrl] = useState('');
+    const [uazInstanceToken, setUazInstanceToken] = useState('');
     const [uazWebhookUrl, setUazWebhookUrl] = useState('');
 
     const { data: channels, isLoading } = useChannels();
@@ -174,11 +174,11 @@ export default function ChannelsPage() {
                                                         const token = channel.accessToken || '';
                                                         setWaPhoneNumberId(phoneId);
                                                         setWaAccessToken(token);
-                                                        const inst = (cfg.instanceId as string) || '';
-                                                        const uTok = (cfg.token as string) || '';
+                                                        const srvUrl = (cfg.serverUrl as string) || '';
+                                                        const instToken = (cfg.instanceToken as string) || (cfg.token as string) || '';
                                                         const uWebhook = (cfg.webhookUrl as string) || '';
-                                                        setUazInstanceId(inst);
-                                                        setUazToken(uTok);
+                                                        setUazServerUrl(srvUrl);
+                                                        setUazInstanceToken(instToken);
                                                         setUazWebhookUrl(uWebhook);
                                                     }
                                                 }}
@@ -549,20 +549,20 @@ export default function ChannelsPage() {
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm font-medium mb-2">Instance ID</label>
+                                                    <label className="block text-sm font-medium mb-2">Server URL</label>
                                                     <Input
-                                                        placeholder="Ex: abc123"
-                                                        value={uazInstanceId}
-                                                        onChange={(e) => setUazInstanceId(e.target.value)}
+                                                        placeholder="Ex: https://api.z-api.io/instances/..."
+                                                        value={uazServerUrl}
+                                                        onChange={(e) => setUazServerUrl(e.target.value)}
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm font-medium mb-2">Token</label>
+                                                    <label className="block text-sm font-medium mb-2">Instance Token</label>
                                                     <Input
                                                         type="password"
                                                         placeholder="Token da instância"
-                                                        value={uazToken}
-                                                        onChange={(e) => setUazToken(e.target.value)}
+                                                        value={uazInstanceToken}
+                                                        onChange={(e) => setUazInstanceToken(e.target.value)}
                                                     />
                                                 </div>
                                                 <div className="flex gap-2 pt-2">
@@ -574,8 +574,8 @@ export default function ChannelsPage() {
                                                                     data: {
                                                                         config: {
                                                                             ...((channel.config || {}) as Record<string, unknown>),
-                                                                            instanceId: uazInstanceId,
-                                                                            token: uazToken,
+                                                                            serverUrl: uazServerUrl,
+                                                                            instanceToken: uazInstanceToken,
                                                                             webhookUrl: uazWebhookUrl,
                                                                         },
                                                                     },
