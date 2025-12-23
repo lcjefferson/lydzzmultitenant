@@ -559,8 +559,8 @@ export class MessagesService {
             mediaUrl,
             mediaType,
             message,
-            config?.serverUrl,
             token,
+            config?.serverUrl,
           );
           if (!success) {
             this.logger.error(`Failed to send media message via Uazapi to ${conversation.contactIdentifier}`);
@@ -568,9 +568,9 @@ export class MessagesService {
         } else {
           const success = await this.uazapiService.sendMessage(
             conversation.contactIdentifier,
-            messa,
-            config?.serverUrlge,
+            message,
             token,
+            config?.serverUrl,
           );
           if (!success) {
             this.logger.error(`Failed to send text message via Uazapi to ${conversation.contactIdentifier}`);
