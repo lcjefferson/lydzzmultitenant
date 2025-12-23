@@ -15,10 +15,13 @@ export class UazapiService {
   private readonly apiUrl: string;
 
   constructor(private readonly configService: ConfigService) {
-    const url =
-      this.configService.get<string>('UAZAPI_API_URL') ??
-      'https://api.uazapi.dev';
+    let url = this.configService.get<string>('UAZAPI_API_URL');
+    if (!url || url.trim() === '') {
+        this.logger.warn('UAZAPI_API_URL is not defined or empty. Defaulting to https://api.uazapi.dev');
+        url = 'https://api.uazapi.dev';
+    }
     this.apiUrl = url.replace(/\/$/, ''); // Remove trailing slash
+    this.logger.log(`UazapiService initialized with API URL: ${this.apiUrl}`);
   }
 
   /**
