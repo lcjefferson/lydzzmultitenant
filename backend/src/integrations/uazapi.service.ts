@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
+import * as https from 'https'; // Import https module
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -325,12 +326,18 @@ export class UazapiService {
             offset
         };
 
+        // Create an HTTPS agent that ignores self-signed certificate errors
+        const httpsAgent = new https.Agent({  
+            rejectUnauthorized: false
+        });
+
         const response = await axios.post(url, payload, {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'token': token,
-            }
+            },
+            httpsAgent: httpsAgent
         });
 
         if (response.data && Array.isArray(response.data)) {
