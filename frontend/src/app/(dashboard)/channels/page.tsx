@@ -44,6 +44,7 @@ export default function ChannelsPage() {
     const [waAccessToken, setWaAccessToken] = useState('');
     const [uazInstanceId, setUazInstanceId] = useState('');
     const [uazToken, setUazToken] = useState('');
+    const [uazServerUrl, setUazServerUrl] = useState('');
     const [uazWebhookUrl, setUazWebhookUrl] = useState('');
 
     const { data: channels, isLoading } = useChannels();
@@ -547,6 +548,17 @@ export default function ChannelsPage() {
                                                         onChange={(e) => setUazWebhookUrl(e.target.value)}
                                                         placeholder="https://your-webhook-url.com/api/webhooks/uazapi"
                                                     />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Server URL</label>
+                                                    <Input
+                                                        value={uazServerUrl}
+                                                        onChange={(e) => setUazServerUrl(e.target.value)}
+                                                        placeholder="https://api.uazapi.com"
+                                                    />
+                                                    <p className="text-xs text-text-tertiary mt-1">
+                                                        URL do servidor da API (deixe em branco para usar o padrão)
+                                                    </p>
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-medium mb-2">Instance ID</label>

@@ -99,10 +99,6 @@ class SocketService {
         this.socket?.on('notificationCreated', callback);
     }
 
-    onNotificationCreated(callback: (notification: any) => void): void {
-        this.socket?.on('notificationCreated', callback);
-    }
-
     offNotificationCreated(callback: (notification: any) => void): void {
         this.socket?.off('notificationCreated', callback);
     }
