@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
-import { Message } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -219,7 +218,7 @@ export class MessagesService {
       }
   }
 
-  async create(dto: CreateMessageDto): Promise<Message> {
+  async create(dto: CreateMessageDto): Promise<any> {
     const message = await this.prisma.message.create({
       data: {
         type: dto.type ?? 'text',
@@ -346,7 +345,34 @@ export class MessagesService {
             else mediaType = 'document'; // Default for 'file'
         }
 
-        await this.sendWhatsAppMessage(conversation, dto.content, mediaUrl, mediaType);
+        const success = await this.sendWhatsAppMessage(conversation, dto.content, mediaUrl, mediaType);
+        
+        if (!success) {
+            this.logger.error(`Failed to send message ${message.id} via WhatsApp`);
+            // Update metadata to indicate failure
+            await this.prisma.message.update({
+                where: { id: message.id },
+                data: {
+                    metadata: {
+                        ...(message.metadata as object || {}),
+                        status: 'failed',
+                        error: 'Failed to send to provider'
+                    }
+                }
+            });
+        } else {
+            // Update metadata to indicate success (optional, or rely on lack of error)
+             await this.prisma.message.update({
+                where: { id: message.id },
+                data: {
+                    metadata: {
+                        ...(message.metadata as object || {}),
+                        status: 'sent',
+                        sentAt: new Date().toISOString()
+                    }
+                }
+            });
+        }
       }
 
       if (conversation && !conversation.agentId) {
@@ -495,7 +521,7 @@ export class MessagesService {
     conversation: {
       contactIdentifier: string;
       channel: {
-        config: import('@prisma/client').Prisma.JsonValue | null;
+        config: any;
         accessToken?: string | null;
       };
     },
@@ -550,7 +576,7 @@ export class MessagesService {
         
         if (!token) {
           console.error('Uazapi channel missing configuration');
-          return;
+          return false;
         }
 
         if (mediaUrl && mediaType) {
@@ -564,7 +590,9 @@ export class MessagesService {
           );
           if (!success) {
             this.logger.error(`Failed to send media message via Uazapi to ${conversation.contactIdentifier}`);
+            return false;
           }
+          return true;
         } else {
           const success = await this.uazapiService.sendMessage(
             conversation.contactIdentifier,
@@ -574,9 +602,10 @@ export class MessagesService {
           );
           if (!success) {
             this.logger.error(`Failed to send text message via Uazapi to ${conversation.contactIdentifier}`);
+            return false;
           }
+          return true;
         }
-        return;
       }
 
       const accessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
@@ -584,7 +613,7 @@ export class MessagesService {
 
       if (!phoneNumberId || !accessToken) {
         console.error('WhatsApp channel missing configuration');
-        return;
+        return false;
       }
 
       await this.whatsAppService.sendMessage(
@@ -593,23 +622,25 @@ export class MessagesService {
         phoneNumberId,
         accessToken,
       );
+      return true;
     } catch (error) {
       console.error('Error sending WhatsApp message:', error);
+      return false;
     }
   }
 
-  async findAll(conversationId: string): Promise<Message[]> {
+  async findAll(conversationId: string): Promise<any[]> {
     return this.prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  async findOne(id: string): Promise<Message | null> {
+  async findOne(id: string): Promise<any | null> {
     return this.prisma.message.findUnique({ where: { id } });
   }
 
-  async update(id: string, data: any): Promise<Message> {
+  async update(id: string, data: any): Promise<any> {
     const updated = await this.prisma.message.update({
       where: { id },
       data,
@@ -618,7 +649,7 @@ export class MessagesService {
     return updated;
   }
 
-  async remove(id: string): Promise<Message> {
+  async remove(id: string): Promise<any> {
     return this.prisma.message.delete({ where: { id } });
   }
 }
