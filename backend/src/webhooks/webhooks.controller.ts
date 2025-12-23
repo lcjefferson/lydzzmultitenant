@@ -493,8 +493,14 @@ export class WebhooksController {
              // If we have no base64 but have mediaKey/messageId, try to download
              else if (incomingMessage.messageId) {
                  const cfg = (channel?.config && typeof channel.config === 'object' ? channel.config : {}) as { token?: string };
-                 const token = cfg.token || process.env.UAZAPI_INSTANCE_TOKEN;
+                 let token = cfg.token;
                  
+                 // If token is missing in channel config, try env var
+                 if (!token) {
+                     token = process.env.UAZAPI_INSTANCE_TOKEN;
+                     if (token) this.logger.log('Using UAZAPI_INSTANCE_TOKEN from env as fallback');
+                 }
+
                  this.logger.log(`Processing media for message ${incomingMessage.messageId}. Token available: ${!!token}`);
 
                  if (token) {

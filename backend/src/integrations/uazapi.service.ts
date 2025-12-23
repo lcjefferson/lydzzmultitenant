@@ -35,7 +35,15 @@ export class UazapiService {
       const url = `${baseUrl}/send/text`;
       
       // Sanitize number: remove non-digits and suffixes
-      const cleanNumber = to.replace(/\D/g, '');
+      let cleanNumber = to.replace(/\D/g, '');
+
+      // Check if it looks like a Brazilian number without country code (10 or 11 digits)
+      // and prepends 55 if necessary. 
+      // This is a heuristic: Brazil DDDs are 11-99.
+      if ((cleanNumber.length === 10 || cleanNumber.length === 11) && parseInt(cleanNumber.substring(0, 2)) >= 11) {
+          cleanNumber = '55' + cleanNumber;
+          this.logger.log(`Prepended 55 to number: ${cleanNumber}`);
+      }
 
       const payload = {
         number: cleanNumber,
@@ -85,7 +93,13 @@ export class UazapiService {
       const url = `${baseUrl}/send/media`;
       
       // Sanitize number
-      const cleanNumber = to.replace(/\D/g, '');
+      let cleanNumber = to.replace(/\D/g, '');
+
+      // Check if it looks like a Brazilian number without country code (10 or 11 digits)
+      if ((cleanNumber.length === 10 || cleanNumber.length === 11) && parseInt(cleanNumber.substring(0, 2)) >= 11) {
+          cleanNumber = '55' + cleanNumber;
+          this.logger.log(`Prepended 55 to media number: ${cleanNumber}`);
+      }
 
       let fileToSend = mediaUrl;
       const appUrl = this.configService.get<string>('APP_URL');
@@ -206,7 +220,7 @@ export class UazapiService {
                 'Accept': 'application/json',
                 'token': token,
             },
-            timeout: 15000 // 15s timeout
+            timeout: 30000 // Increased timeout to 30s
         });
 
         this.logger.log(`Download media response status: ${response.status}`);
@@ -235,13 +249,16 @@ export class UazapiService {
                 mimetype,
                 filename: responseData.filename
             };
-        } else if (responseData.link || responseData.fileURL) {
-             const link = responseData.link || responseData.fileURL;
+        } 
+        
+        // Fallback to link download
+        const link = responseData.link || responseData.fileURL || responseData.url;
+        if (link) {
              this.logger.log(`Base64 missing, attempting to download from link: ${link}`);
              try {
                  const linkResponse = await axios.get(link, { 
                      responseType: 'arraybuffer',
-                     timeout: 15000 
+                     timeout: 30000 
                  });
                  const buffer = Buffer.from(linkResponse.data);
                  const mimetype = linkResponse.headers['content-type'] || responseData.mimetype || 'application/octet-stream';
@@ -258,7 +275,7 @@ export class UazapiService {
         
         this.logger.error(`Download media response missing base64 and link. Data keys: ${Object.keys(response.data || {}).join(', ')}`);
         if (response.data) {
-             this.logger.error(`Response data: ${JSON.stringify(response.data)}`);
+             this.logger.debug(`Response data: ${JSON.stringify(response.data)}`);
         }
         
 
