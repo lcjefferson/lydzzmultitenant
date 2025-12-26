@@ -85,10 +85,25 @@ export class OpenAIService {
       // System Message (from Agent or Default)
       const systemMessage =
         agent?.systemMessage || 'You are a helpful assistant.';
+      
+      this.logger.debug(`[OpenAIService] Generating response for Conversation ${conversationId}`);
+      this.logger.debug(`[OpenAIService] Agent: ${agent?.name || 'None'} (${agent?.id || 'No ID'})`);
+      this.logger.debug(`[OpenAIService] System Message Preview: ${systemMessage.substring(0, 200)}...`);
+
       messages.push({ role: 'system', content: systemMessage });
 
       // History (reverse chronological to chronological)
+      // Prisma returns messages ordered by createdAt DESC (newest first).
+      // We reverse it to get chronological order (oldest first).
       const history = conversation.messages.reverse();
+      
+      // Check if the last message in history is the current user message to avoid duplication
+      const lastMessage = history[history.length - 1];
+      const isLastMessageCurrentUserMessage = 
+        lastMessage && 
+        lastMessage.senderType !== 'ai' && 
+        lastMessage.content === userMessage;
+
       history.forEach((msg) => {
         if (msg.content) {
           const role = msg.senderType === 'ai' ? 'assistant' : 'user';
@@ -96,8 +111,11 @@ export class OpenAIService {
         }
       });
 
-      if (userMessage) {
+      // Only add userMessage if it wasn't already the last message in history
+      if (userMessage && !isLastMessageCurrentUserMessage) {
         messages.push({ role: 'user', content: userMessage });
+      } else if (isLastMessageCurrentUserMessage) {
+         this.logger.debug('[OpenAIService] User message already present in history, skipping explicit append.');
       }
 
       // Current User Message (already in history if saved before calling this, but let's ensure)

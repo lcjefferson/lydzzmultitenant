@@ -6,6 +6,10 @@ export interface User {
     name: string;
     role: 'admin' | 'manager' | 'consultant';
     organizationId: string;
+    organization?: {
+        name: string;
+        slug: string;
+    };
     isActive: boolean;
     lastLoginAt: Date | null;
     createdAt: Date;
@@ -162,6 +166,10 @@ export interface AuthResponse {
         name: string;
         role: string;
         organizationId: string;
+        organization?: {
+            name: string;
+            slug: string;
+        };
     };
 }
 
@@ -228,8 +236,8 @@ export interface CreateUserDto {
 export type UpdateAgentDto = Partial<CreateAgentDto>;
 export type UpdateChannelDto = Partial<CreateChannelDto>;
 export type UpdateConversationDto = Partial<CreateConversationDto> & {
-    agentId?: string;
-    assignedToId?: string;
+    agentId?: string | null;
+    assignedToId?: string | null;
 };
 export type UpdateLeadDto = Partial<CreateLeadDto>;
 export type UpdateUserDto = Partial<CreateUserDto>;

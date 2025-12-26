@@ -5,9 +5,9 @@ import { IsOptional, IsString } from 'class-validator';
 export class UpdateConversationDto extends PartialType(CreateConversationDto) {
   @IsOptional()
   @IsString()
-  agentId?: string;
+  agentId?: string | null;
 
   @IsOptional()
   @IsString()
-  assignedToId?: string;
+  assignedToId?: string | null;
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, Notification } from '@prisma/client';
 import { ConversationsGateway } from '../conversations/conversations.gateway';
@@ -30,15 +30,33 @@ export class NotificationsService {
     return notification;
   }
 
-  async listForUser(userId: string): Promise<Notification[]> {
+  async listForUser(userId: string, organizationId?: string): Promise<Notification[]> {
+    const where: Prisma.NotificationWhereInput = { userId };
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
     return this.prisma.notification.findMany({
-      where: { userId },
+      where,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
   }
 
-  async markRead(id: string): Promise<Notification> {
+  async markRead(id: string, userId: string, organizationId?: string): Promise<Notification> {
+    const where: Prisma.NotificationWhereInput = {
+      id,
+      userId,
+    };
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+
+    const notification = await this.prisma.notification.findFirst({ where });
+
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+
     return this.prisma.notification.update({
       where: { id },
       data: { readAt: new Date() },

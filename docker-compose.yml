@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15
     container_name: smarterchat-postgres
     restart: unless-stopped
     ports:
@@ -20,7 +20,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7
     container_name: smarterchat-redis
     restart: unless-stopped
     ports:

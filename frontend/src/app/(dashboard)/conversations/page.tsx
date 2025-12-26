@@ -59,7 +59,7 @@ export default function ConversationsPage() {
                     if (effectiveSelectedId) {
                          await createMessage.mutateAsync({
                             conversationId: effectiveSelectedId,
-                            content: 'Áudio enviado',
+                            content: '', // Empty content for audio messages to avoid "Audio enviado" text
                             senderType: 'user',
                             type: 'audio',
                             attachments: {
@@ -151,11 +151,17 @@ export default function ConversationsPage() {
             }
 
             // Use message input as caption if available
-            const caption = messageInput.trim() || content;
+            // If it's a file/audio/video, we don't want the default "Arquivo enviado" text to be the message content if there is no caption.
+            // But the backend expects 'content'.
+            // For files/audio, let's keep the content empty or just a placeholder if the user didn't type anything.
+            // Actually, for display purposes, MessageBubble shows the media. The content text is often redundant if it's just "Audio enviado".
+            
+            const hasUserTyped = messageInput.trim().length > 0;
+            const caption = hasUserTyped ? messageInput.trim() : ''; 
 
             await createMessage.mutateAsync({
                 conversationId: effectiveSelectedId,
-                content: caption,
+                content: caption, // Send empty string if no caption, so UI renders just the media bubble
                 senderType: 'user',
                 type,
                 attachments: {
@@ -165,7 +171,7 @@ export default function ConversationsPage() {
                 }
             });
             
-            if (messageInput.trim()) setMessageInput('');
+            if (hasUserTyped) setMessageInput('');
             
             toast.success('Arquivo enviado com sucesso!');
         } catch (error) {
@@ -291,7 +297,11 @@ export default function ConversationsPage() {
             try {
                 await updateConversation.mutateAsync({
                     id: effectiveSelectedId,
-                    data: { status: 'active' },
+                    data: {
+                        status: 'active',
+                        agentId: null,
+                        assignedToId: user?.id
+                    },
                 });
             } catch (error) {
                 console.error('Error assigning conversation:', error);

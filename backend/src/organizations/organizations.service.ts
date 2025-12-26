@@ -21,7 +21,10 @@ export class OrganizationsService {
     });
   }
 
-  async findAll(): Promise<Organization[]> {
+  async findAll(organizationId?: string): Promise<Organization[]> {
+    if (organizationId) {
+      return this.prisma.organization.findMany({ where: { id: organizationId } });
+    }
     return this.prisma.organization.findMany();
   }
 

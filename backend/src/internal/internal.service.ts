@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { ConversationsGateway } from '../conversations/conversations.gateway';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class InternalService {
@@ -10,11 +11,46 @@ export class InternalService {
     private readonly gateway: ConversationsGateway,
   ) {}
 
-  async ensureInternalChannel() {
-    const org = await this.prisma.organization.findFirst();
-    if (!org) throw new Error('No organization found');
+  async createOrganizationWithAdmin(data: any) {
+    // 1. Create Organization
+    const slug = data.orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const organization = await this.prisma.organization.create({
+      data: {
+        name: data.orgName,
+        slug: slug,
+        plan: 'starter',
+      },
+    });
+
+    // 2. Create Admin User
+    const hashedPassword = await bcrypt.hash(data.userPassword, 10);
+    const user = await this.prisma.user.create({
+      data: {
+        email: data.userEmail,
+        password: hashedPassword,
+        name: data.userName,
+        role: 'admin',
+        organizationId: organization.id,
+      },
+    });
+
+    // 3. Ensure Internal Channel exists (optional but good practice)
+    await this.ensureInternalChannel(organization.id);
+
+    return {
+      organization,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    };
+  }
+
+  async ensureInternalChannel(organizationId: string) {
     let channel = await this.prisma.channel.findFirst({
-      where: { organizationId: org.id, type: 'internal' },
+      where: { organizationId, type: 'internal' },
     });
     if (!channel) {
       channel = await this.prisma.channel.create({
@@ -23,18 +59,16 @@ export class InternalService {
           name: 'Internal',
           identifier: 'internal',
           status: 'active',
-          organizationId: org.id,
+          organizationId,
         },
       });
     }
     return channel;
   }
 
-  async listRooms() {
-    const org = await this.prisma.organization.findFirst();
-    if (!org) throw new Error('No organization found');
+  async listRooms(organizationId: string) {
     const rooms = await this.prisma.conversation.findMany({
-      where: { organizationId: org.id, channel: { type: 'internal' } },
+      where: { organizationId, channel: { type: 'internal' } },
       orderBy: { lastMessageAt: 'desc' },
       include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
     });
@@ -46,21 +80,26 @@ export class InternalService {
     }));
   }
 
-  async createRoom(name: string) {
-    const channel = await this.ensureInternalChannel();
-    const orgId = channel.organizationId;
+  async createRoom(name: string, organizationId: string) {
+    const channel = await this.ensureInternalChannel(organizationId);
     const conversation = await this.prisma.conversation.create({
       data: {
         contactName: name,
         contactIdentifier: `room:${randomUUID()}`,
         channelId: channel.id,
-        organizationId: orgId,
+        organizationId,
       },
     });
     return conversation;
   }
 
-  async getRoomMessages(roomId: string) {
+  async getRoomMessages(roomId: string, organizationId?: string) {
+    if (organizationId) {
+      const room = await this.prisma.conversation.findFirst({
+        where: { id: roomId, organizationId },
+      });
+      if (!room) throw new Error('Room not found or access denied');
+    }
     return this.prisma.message.findMany({
       where: { conversationId: roomId },
       orderBy: { createdAt: 'asc' },
@@ -68,7 +107,13 @@ export class InternalService {
     });
   }
 
-  async sendRoomMessage(roomId: string, userId: string, content: string) {
+  async sendRoomMessage(roomId: string, userId: string, content: string, organizationId?: string) {
+    if (organizationId) {
+       const room = await this.prisma.conversation.findFirst({
+         where: { id: roomId, organizationId },
+       });
+       if (!room) throw new Error('Room not found or access denied');
+    }
     const message = await this.prisma.message.create({
       data: {
         conversationId: roomId,
@@ -91,12 +136,10 @@ export class InternalService {
     return `dm:${x}:${y}`;
   }
 
-  async listDMs(currentUserId: string) {
-    const org = await this.prisma.organization.findFirst();
-    if (!org) throw new Error('No organization found');
+  async listDMs(currentUserId: string, organizationId: string) {
     const conversations = await this.prisma.conversation.findMany({
       where: {
-        organizationId: org.id,
+        organizationId,
         channel: { type: 'internal' },
         contactIdentifier: { startsWith: 'dm:' },
         OR: [{ contactIdentifier: { contains: currentUserId } }],
@@ -112,21 +155,28 @@ export class InternalService {
     }));
   }
 
-  async listUsers() {
+  async listUsers(organizationId?: string) {
+    const where: any = { isActive: true };
+    if (organizationId) where.organizationId = organizationId;
     return this.prisma.user.findMany({
-      where: { isActive: true },
+      where,
       orderBy: { name: 'asc' },
       select: { id: true, name: true, email: true, role: true },
     });
   }
 
-  async openDM(currentUserId: string, targetUserId: string) {
-    const channel = await this.ensureInternalChannel();
-    const orgId = channel.organizationId;
+  async openDM(currentUserId: string, targetUserId: string, organizationId: string) {
+    const channel = await this.ensureInternalChannel(organizationId);
     const targetUser = await this.prisma.user.findUnique({
       where: { id: targetUserId },
     });
     if (!targetUser) throw new Error('Target user not found');
+    
+    // Check if target user is in same organization
+    if (targetUser.organizationId !== organizationId) {
+        throw new Error('Target user is not in your organization');
+    }
+
     const identifier = this.makeDMIdentifier(currentUserId, targetUserId);
     let conversation = await this.prisma.conversation.findFirst({
       where: { contactIdentifier: identifier, channelId: channel.id },
@@ -137,14 +187,20 @@ export class InternalService {
           contactName: targetUser.name || 'Usuário',
           contactIdentifier: identifier,
           channelId: channel.id,
-          organizationId: orgId,
+          organizationId,
         },
       });
     }
     return conversation;
   }
 
-  async getDMMessages(conversationId: string) {
+  async getDMMessages(conversationId: string, organizationId?: string) {
+    if (organizationId) {
+        const conv = await this.prisma.conversation.findFirst({
+            where: { id: conversationId, organizationId }
+        });
+        if (!conv) throw new Error('Conversation not found');
+    }
     return this.prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
@@ -152,7 +208,13 @@ export class InternalService {
     });
   }
 
-  async sendDMMessage(conversationId: string, userId: string, content: string) {
+  async sendDMMessage(conversationId: string, userId: string, content: string, organizationId?: string) {
+    if (organizationId) {
+        const conv = await this.prisma.conversation.findFirst({
+            where: { id: conversationId, organizationId }
+        });
+        if (!conv) throw new Error('Conversation not found');
+    }
     const message = await this.prisma.message.create({
       data: {
         conversationId,

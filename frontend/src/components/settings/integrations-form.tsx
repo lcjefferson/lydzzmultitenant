@@ -116,9 +116,9 @@ export function IntegrationsForm() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-6 text-neutral-900">
                     <div className="space-y-2">
-                        <Label htmlFor="openaiApiKey">API Key</Label>
+                        <Label htmlFor="openaiApiKey" className="text-neutral-900">API Key</Label>
                         <div className="relative">
                             <Input
                                 id="openaiApiKey"
@@ -179,7 +179,7 @@ export function IntegrationsForm() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                            <Label htmlFor="openaiModel">Modelo</Label>
+                            <Label htmlFor="openaiModel" className="text-neutral-900">Modelo</Label>
                             <Select
                                 value={formData.openaiModel}
                                 onValueChange={handleSelectChange}
@@ -196,7 +196,7 @@ export function IntegrationsForm() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="openaiMaxTokens">Max Tokens</Label>
+                            <Label htmlFor="openaiMaxTokens" className="text-neutral-900">Max Tokens</Label>
                             <Input
                                 id="openaiMaxTokens"
                                 name="openaiMaxTokens"
@@ -209,7 +209,7 @@ export function IntegrationsForm() {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="openaiTemperature">Temperatura (0-1)</Label>
+                            <Label htmlFor="openaiTemperature" className="text-neutral-900">Temperatura (0-1)</Label>
                             <Input
                                 id="openaiTemperature"
                                 name="openaiTemperature"

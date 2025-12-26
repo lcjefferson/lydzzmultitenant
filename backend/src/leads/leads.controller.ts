@@ -15,6 +15,7 @@ import { LeadsService } from './leads.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @Controller('leads')
 @UseGuards(JwtAuthGuard)
@@ -22,8 +23,11 @@ export class LeadsController {
   constructor(private readonly leadsService: LeadsService) {}
 
   @Post()
-  create(@Body() createLeadDto: CreateLeadDto) {
-    return this.leadsService.create(createLeadDto);
+  create(
+    @Body() createLeadDto: CreateLeadDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.create(createLeadDto, organizationId);
   }
 
   @Get()
@@ -46,6 +50,7 @@ export class LeadsController {
     req: Request & {
       user?: { id: string; role: string; organizationId: string };
     },
+    @GetUser('organizationId') organizationId: string,
   ) {
     const user = req.user as {
       id: string;
@@ -56,13 +61,16 @@ export class LeadsController {
       query,
       user?.id,
       user?.role,
-      user?.organizationId,
+      organizationId,
     );
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.leadsService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.findOne(id, organizationId);
   }
 
   @Patch(':id')
@@ -70,9 +78,10 @@ export class LeadsController {
     @Param('id') id: string,
     @Body() updateLeadDto: UpdateLeadDto,
     @Req() req: Request & { user?: { id: string } },
+    @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id;
-    return this.leadsService.update(id, updateLeadDto, userId);
+    return this.leadsService.update(id, updateLeadDto, userId, organizationId);
   }
 
   @Post(':id/delegate')
@@ -80,36 +89,62 @@ export class LeadsController {
     @Param('id') id: string,
     @Body() body: { assignedToId: string },
     @Req() req: Request & { user?: { id: string } },
+    @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id;
-    return this.leadsService.delegate(id, body.assignedToId, userId);
+    return this.leadsService.delegate(
+      id,
+      body.assignedToId,
+      userId,
+      organizationId,
+    );
   }
 
   @Post(':id/tags')
-  addTag(@Param('id') id: string, @Body() body: { tag: string }) {
-    return this.leadsService.addTag(id, body.tag);
+  addTag(
+    @Param('id') id: string,
+    @Body() body: { tag: string },
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.addTag(id, body.tag, organizationId);
   }
 
   @Delete(':id/tags')
-  removeTag(@Param('id') id: string, @Body() body: { tag: string }) {
-    return this.leadsService.removeTag(id, body.tag);
+  removeTag(
+    @Param('id') id: string,
+    @Body() body: { tag: string },
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.removeTag(id, body.tag, organizationId);
   }
 
   @Post(':id/comments')
   addComment(
     @Param('id') id: string,
     @Body() body: { content: string; userId?: string },
+    @GetUser('organizationId') organizationId: string,
   ) {
-    return this.leadsService.addComment(id, body.content, body.userId);
+    return this.leadsService.addComment(
+      id,
+      body.content,
+      body.userId,
+      organizationId,
+    );
   }
 
   @Get(':id/comments')
-  getComments(@Param('id') id: string) {
-    return this.leadsService.getComments(id);
+  getComments(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.getComments(id, organizationId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.leadsService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.remove(id, organizationId);
   }
 }

@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { Message } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -26,7 +27,7 @@ export class MessagesService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async syncMessages(conversationId: string): Promise<number> {
+  async syncMessages(conversationId: string, organizationId?: string): Promise<number> {
     try {
         const conversation = await this.prisma.conversation.findUnique({
             where: { id: conversationId },
@@ -37,8 +38,14 @@ export class MessagesService {
             return 0;
         }
 
+        if (organizationId && conversation.organizationId !== organizationId) {
+          return 0;
+        }
+
         const channelConfig = conversation.channel.config as any;
         const token = channelConfig?.token || this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
+        const serverUrl = channelConfig?.serverUrl; // Extract serverUrl
+
         if (!token) {
             this.logger.error('No Uazapi token found for sync');
             return 0;
@@ -49,7 +56,7 @@ export class MessagesService {
 
         this.logger.log(`Syncing messages for chat ${chatId} using token ${token.slice(0, 10)}...`);
 
-        const uazapiMessages = await this.uazapiService.findMessages(chatId, 50, 0, token);
+        const uazapiMessages = await this.uazapiService.findMessages(chatId, 50, 0, token, serverUrl);
 
         if (!uazapiMessages || !Array.isArray(uazapiMessages)) {
             this.logger.log(`No messages found for chat ${chatId}`);
@@ -122,10 +129,10 @@ export class MessagesService {
                     (!existing.attachments || Object.keys(existing.attachments as object).length === 0)) {
                     
                     let attachments: any = undefined;
-                    if (msg.message?.imageMessage) attachments = await this.processSyncedMedia(msg, 'image', token);
-                    else if (msg.message?.videoMessage) attachments = await this.processSyncedMedia(msg, 'video', token);
-                    else if (msg.message?.audioMessage) attachments = await this.processSyncedMedia(msg, 'audio', token);
-                    else if (msg.message?.documentMessage) attachments = await this.processSyncedMedia(msg, 'document', token);
+                    if (msg.message?.imageMessage) attachments = await this.processSyncedMedia(msg, 'image', token, serverUrl);
+                    else if (msg.message?.videoMessage) attachments = await this.processSyncedMedia(msg, 'video', token, serverUrl);
+                    else if (msg.message?.audioMessage) attachments = await this.processSyncedMedia(msg, 'audio', token, serverUrl);
+                    else if (msg.message?.documentMessage) attachments = await this.processSyncedMedia(msg, 'document', token, serverUrl);
 
                     if (attachments) {
                          this.logger.log(`Backfilled media for message ${existing.id}`);
@@ -145,16 +152,16 @@ export class MessagesService {
             
             if (msg.message?.imageMessage) {
                 type = 'image';
-                attachments = await this.processSyncedMedia(msg, 'image', token);
+                attachments = await this.processSyncedMedia(msg, 'image', token, serverUrl);
             } else if (msg.message?.videoMessage) {
                 type = 'video';
-                attachments = await this.processSyncedMedia(msg, 'video', token);
+                attachments = await this.processSyncedMedia(msg, 'video', token, serverUrl);
             } else if (msg.message?.audioMessage) {
                 type = 'audio';
-                attachments = await this.processSyncedMedia(msg, 'audio', token);
+                attachments = await this.processSyncedMedia(msg, 'audio', token, serverUrl);
             } else if (msg.message?.documentMessage) {
                 type = 'file';
-                attachments = await this.processSyncedMedia(msg, 'document', token);
+                attachments = await this.processSyncedMedia(msg, 'document', token, serverUrl);
             }
 
             await this.create({
@@ -179,7 +186,7 @@ export class MessagesService {
     }
   }
 
-  private async processSyncedMedia(msg: any, type: string, token: string): Promise<any> {
+  private async processSyncedMedia(msg: any, type: string, token: string, apiUrl?: string): Promise<any> {
       try {
         const messageId = msg.key?.id;
         if (!messageId) return undefined;
@@ -192,23 +199,23 @@ export class MessagesService {
         // Usually url in message object is internal WhatsApp URL, not accessible.
         // So we must download.
         
-        const downloaded = await this.uazapiService.downloadMedia(messageId, token);
-        if (!downloaded) return undefined;
+        const media = await this.uazapiService.downloadMedia(messageId, token, apiUrl);
+        if (!media) return undefined;
 
-        const ext = downloaded.mimetype ? downloaded.mimetype.split('/')[1].replace('; codecs=opus', '') : 'bin';
-        const filename = downloaded.filename || `${Date.now()}-${Math.round(Math.random() * 10000)}.${ext}`;
+        const ext = media.mimetype ? media.mimetype.split('/')[1].replace('; codecs=opus', '') : 'bin';
+        const filename = media.filename || `${Date.now()}-${Math.round(Math.random() * 10000)}.${ext}`;
         const uploadDir = path.join(process.cwd(), 'uploads');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
         const filepath = path.join(uploadDir, filename);
         
-        fs.writeFileSync(filepath, downloaded.buffer);
+        fs.writeFileSync(filepath, media.buffer);
         
         return {
             url: `/uploads/${filename}`,
             path: `/uploads/${filename}`,
-            mimetype: downloaded.mimetype,
+            mimetype: media.mimetype,
             filename: filename,
             source: 'uazapi-sync'
         };
@@ -218,7 +225,15 @@ export class MessagesService {
       }
   }
 
-  async create(dto: CreateMessageDto): Promise<any> {
+  async create(dto: CreateMessageDto, organizationId?: string): Promise<Message> {
+    if (organizationId) {
+      const conversation = await this.prisma.conversation.findFirst({
+        where: { id: dto.conversationId, organizationId },
+      });
+      if (!conversation) {
+        throw new NotFoundException('Conversation not found');
+      }
+    }
     const message = await this.prisma.message.create({
       data: {
         type: dto.type ?? 'text',
@@ -290,7 +305,7 @@ export class MessagesService {
         }
       }
 
-      if (conversation && !conversation.agentId) {
+      if (conversation && !conversation.agentId && conversation.status !== 'active') {
         const defaultAgent = await this.prisma.agent.findFirst({
           where: {
             organizationId: conversation.organizationId,
@@ -318,7 +333,7 @@ export class MessagesService {
         include: { channel: true },
       });
 
-      if (conversation && conversation.channel.type === 'whatsapp') {
+      if (conversation && ['whatsapp', 'instagram', 'facebook'].includes(conversation.channel.type)) {
         let mediaUrl: string | undefined;
         let mediaType: 'image' | 'video' | 'audio' | 'document' | undefined;
 
@@ -330,6 +345,9 @@ export class MessagesService {
                 // Construct full URL for Uazapi if path is relative
                 if (!relativePath.startsWith('http')) {
                     const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3001';
+                    if (appUrl.includes('localhost')) {
+                        this.logger.warn('APP_URL is set to localhost. WhatsApp Media upload will likely fail.');
+                    }
                     // Ensure relativePath doesn't start with / if we add one, or handle it
                     // relativePath from upload is likely "/uploads/..."
                     mediaUrl = `${appUrl}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
@@ -345,37 +363,10 @@ export class MessagesService {
             else mediaType = 'document'; // Default for 'file'
         }
 
-        const success = await this.sendWhatsAppMessage(conversation, dto.content, mediaUrl, mediaType);
-        
-        if (!success) {
-            this.logger.error(`Failed to send message ${message.id} via WhatsApp`);
-            // Update metadata to indicate failure
-            await this.prisma.message.update({
-                where: { id: message.id },
-                data: {
-                    metadata: {
-                        ...(message.metadata as object || {}),
-                        status: 'failed',
-                        error: 'Failed to send to provider'
-                    }
-                }
-            });
-        } else {
-            // Update metadata to indicate success (optional, or rely on lack of error)
-             await this.prisma.message.update({
-                where: { id: message.id },
-                data: {
-                    metadata: {
-                        ...(message.metadata as object || {}),
-                        status: 'sent',
-                        sentAt: new Date().toISOString()
-                    }
-                }
-            });
-        }
+        await this.sendChannelMessage(conversation, dto.content, mediaUrl, mediaType);
       }
 
-      if (conversation && !conversation.agentId) {
+      if (conversation && !conversation.agentId && conversation.status !== 'active') {
         const defaultAgent = await this.prisma.agent.findFirst({
           where: {
             organizationId: conversation.organizationId,
@@ -466,12 +457,9 @@ export class MessagesService {
              return;
           }
 
-          const apiKey = process.env.OPENAI_API_KEY;
-          if (!apiKey || apiKey.includes('your-') || apiKey.length < 10) {
-             // Silently skip if no valid key is configured to avoid logs spam
-             return;
-          }
-
+          // Removed explicit process.env check to allow organization-level keys to work
+          // The OpenAIService will handle key resolution and validation
+          
           const aiResponse = await this.openAIService.generateResponse(
             conversationId,
             userMessage,
@@ -503,8 +491,8 @@ export class MessagesService {
 
             this.gateway.emitNewMessage(conversationId, aiMessage);
 
-            if (aiMessage.conversation.channel.type === 'whatsapp') {
-              await this.sendWhatsAppMessage(
+            if (['whatsapp', 'instagram', 'facebook'].includes(aiMessage.conversation.channel.type)) {
+              await this.sendChannelMessage(
                 aiMessage.conversation,
                 aiResponse,
               );
@@ -517,11 +505,13 @@ export class MessagesService {
     }, 1000);
   }
 
-  private async sendWhatsAppMessage(
+  private async sendChannelMessage(
     conversation: {
+      id: string; // Add id here
       contactIdentifier: string;
       channel: {
-        config: any;
+        type: string;
+        config: import('@prisma/client').Prisma.JsonValue | null;
         accessToken?: string | null;
       };
     },
@@ -548,13 +538,10 @@ export class MessagesService {
       let provider = (channel as unknown as { provider?: string }).provider;
 
       // Smart provider detection logic
-      // If provider says 'whatsapp-official' (default) but config looks like Uazapi, switch to Uazapi
       if (!provider || provider === 'whatsapp-official') {
           const hasUazapiToken = !!(config?.token || envToken);
           const hasOfficialConfig = !!(config?.phoneNumberId || channel.accessToken || this.configService.get('WHATSAPP_ACCESS_TOKEN'));
           
-          // If we have Uazapi token but no explicit Official config in the channel itself (ignoring env fallback for official for a moment to be safe, or checking if env fallback is actually used)
-          // Actually, let's prioritize Uazapi if explicit config is present
           if (config?.token || config?.instanceId) {
              provider = 'uazapi';
           } else if (hasUazapiToken && !hasOfficialConfig) {
@@ -562,21 +549,26 @@ export class MessagesService {
           }
       }
       
+      // Force Uazapi for Instagram/Facebook if not specified (since Official WhatsApp API doesn't support them directly here)
+      if (channel.type === 'instagram' || channel.type === 'facebook') {
+          provider = 'uazapi';
+      }
+
       // Explicit override from config
       if (config?.provider) {
           provider = config.provider;
       }
 
-      console.log(`Sending message via provider: ${provider}, to: ${conversation.contactIdentifier}`);
+      this.logger.log(`Sending message via provider: ${provider}, to: ${conversation.contactIdentifier} (${channel.type})`);
 
       if (provider === 'uazapi') {
         // Use logic OR (||) to fallback to envToken if config.token is empty string
-        const token = config?.token || envToken;
-        console.log(`Uazapi config - Token: ${token ? '***' + token.slice(-4) : 'missing'}`);
+        const token = (config?.token || envToken)?.trim();
+        this.logger.log(`Uazapi config - Token: ${token ? '***' + token.slice(-4) : 'missing'}`);
         
         if (!token) {
-          console.error('Uazapi channel missing configuration');
-          return false;
+          this.logger.error('Uazapi channel missing configuration');
+          return;
         }
 
         if (mediaUrl && mediaType) {
@@ -587,60 +579,115 @@ export class MessagesService {
             message,
             token,
             config?.serverUrl,
+            channel.type,
           );
           if (!success) {
             this.logger.error(`Failed to send media message via Uazapi to ${conversation.contactIdentifier}`);
-            return false;
           }
-          return true;
         } else {
           const success = await this.uazapiService.sendMessage(
             conversation.contactIdentifier,
             message,
             token,
             config?.serverUrl,
+            channel.type,
           );
           if (!success) {
             this.logger.error(`Failed to send text message via Uazapi to ${conversation.contactIdentifier}`);
-            return false;
           }
-          return true;
         }
+        return;
       }
 
-      const accessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
-      const phoneNumberId = config?.phoneNumberId || this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
+      const rawAccessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
+      const rawPhoneNumberId = config?.phoneNumberId || this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
+
+      const accessToken = rawAccessToken?.trim();
+      const phoneNumberId = rawPhoneNumberId?.trim();
 
       if (!phoneNumberId || !accessToken) {
-        console.error('WhatsApp channel missing configuration');
-        return false;
+        this.logger.error('WhatsApp channel missing configuration');
+        this.logger.debug(`Debug: PhoneId: ${phoneNumberId ? 'Present' : 'Missing'}, AccessToken: ${accessToken ? 'Present' : 'Missing'}`);
+        return;
       }
 
-      await this.whatsAppService.sendMessage(
-        conversation.contactIdentifier,
-        message,
-        phoneNumberId,
-        accessToken,
-      );
-      return true;
+      this.logger.log(`Using WhatsApp Official API. PhoneID: ${phoneNumberId}, Token: ${accessToken.slice(0, 10)}...`);
+
+      let result;
+      if (mediaUrl && mediaType) {
+          result = await this.whatsAppService.sendMediaMessage(
+            conversation.contactIdentifier,
+            mediaType,
+            mediaUrl,
+            message, // caption
+            phoneNumberId,
+            accessToken,
+          );
+      } else {
+          result = await this.whatsAppService.sendMessage(
+            conversation.contactIdentifier,
+            message,
+            phoneNumberId,
+            accessToken,
+          );
+      }
+
+      if (!result.success) {
+        this.logger.error(`WhatsApp send failed: ${result.error}`);
+        
+        // Create an error message in the chat to notify the user
+        await this.prisma.message.create({
+          data: {
+             conversationId: conversation.id,
+             type: 'text',
+             senderType: 'ai', // Use 'ai' to distinguish from user
+             content: `⚠️ ERRO AO ENVIAR MENSAGEM WHATSAPP:\n${result.error}`,
+             metadata: { isSystemError: true }
+          }
+        });
+      }
     } catch (error) {
       console.error('Error sending WhatsApp message:', error);
-      return false;
+      await this.prisma.message.create({
+          data: {
+             conversationId: conversation.id,
+             type: 'text',
+             senderType: 'ai',
+             content: `⚠️ ERRO INTERNO AO ENVIAR MENSAGEM:\n${(error as Error).message}`,
+             metadata: { isSystemError: true }
+          }
+      });
     }
   }
 
-  async findAll(conversationId: string): Promise<any[]> {
+  async findAll(conversationId: string, organizationId?: string): Promise<Message[]> {
+    if (organizationId) {
+      const conversation = await this.prisma.conversation.findFirst({
+        where: { id: conversationId, organizationId },
+      });
+      if (!conversation) {
+        return [];
+      }
+    }
     return this.prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  async findOne(id: string): Promise<any | null> {
+  async findOne(id: string, organizationId?: string): Promise<Message | null> {
+    if (organizationId) {
+      return this.prisma.message.findFirst({
+        where: {
+          id,
+          conversation: { organizationId },
+        },
+      });
+    }
     return this.prisma.message.findUnique({ where: { id } });
   }
 
-  async update(id: string, data: any): Promise<any> {
+  async update(id: string, data: any): Promise<Message> {
     const updated = await this.prisma.message.update({
       where: { id },
       data,
@@ -649,7 +696,18 @@ export class MessagesService {
     return updated;
   }
 
-  async remove(id: string): Promise<any> {
+  async remove(id: string, organizationId?: string): Promise<Message> {
+    if (organizationId) {
+      const message = await this.prisma.message.findFirst({
+        where: {
+          id,
+          conversation: { organizationId },
+        },
+      });
+      if (!message) {
+        throw new NotFoundException('Message not found');
+      }
+    }
     return this.prisma.message.delete({ where: { id } });
   }
 }

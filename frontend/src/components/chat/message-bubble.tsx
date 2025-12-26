@@ -210,7 +210,8 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
                         <span className="text-sm">Erro no arquivo</span>
                     </div>
                 ) : (
-                    <p className="whitespace-pre-wrap">{content}</p>
+                    // Only render text content if it exists and is not just a placeholder
+                    content && <p className="whitespace-pre-wrap">{content}</p>
                 )}
                 <div className="flex items-center gap-2 mt-1">
                      <span className="text-xs opacity-70">{formatRelativeTime(timestamp)}</span>

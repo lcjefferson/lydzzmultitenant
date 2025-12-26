@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
@@ -8,14 +8,7 @@ import { Channel } from '@prisma/client';
 export class ChannelsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateChannelDto): Promise<Channel> {
-    let organization = await this.prisma.organization.findFirst();
-    if (!organization) {
-      organization = await this.prisma.organization.create({
-        data: { name: 'Default Organization', slug: 'default' },
-      });
-    }
-
+  async create(dto: CreateChannelDto, organizationId: string): Promise<Channel> {
     const provider = dto.provider ?? 'whatsapp-official';
     const baseConfig =
       typeof dto.config === 'object' && dto.config !== null ? dto.config : {};
@@ -38,27 +31,51 @@ export class ChannelsService {
         accessToken: dto.accessToken,
         config: mergedConfig,
         status: dto.status,
-        organizationId: organization.id,
+        organizationId,
       },
     });
   }
 
-  async findAll(): Promise<Channel[]> {
-    return this.prisma.channel.findMany();
+  async findAll(organizationId: string): Promise<Channel[]> {
+    return this.prisma.channel.findMany({
+      where: { organizationId },
+    });
   }
 
-  async findOne(id: string): Promise<Channel | null> {
-    return this.prisma.channel.findUnique({ where: { id } });
+  async findOne(id: string, organizationId: string): Promise<Channel | null> {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id },
+    });
+
+    if (!channel || channel.organizationId !== organizationId) {
+      return null;
+    }
+
+    return channel;
   }
 
-  async update(id: string, dto: UpdateChannelDto): Promise<Channel> {
+  async update(id: string, dto: UpdateChannelDto, organizationId: string): Promise<Channel> {
+    const channel = await this.findOne(id, organizationId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found or access denied');
+    }
+
+    if (dto.accessToken) {
+        dto.accessToken = dto.accessToken.trim();
+    }
+    
     return this.prisma.channel.update({
       where: { id },
       data: dto,
     });
   }
 
-  async remove(id: string): Promise<Channel> {
+  async remove(id: string, organizationId: string): Promise<Channel> {
+    const channel = await this.findOne(id, organizationId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found or access denied');
+    }
+
     return this.prisma.channel.delete({ where: { id } });
   }
 }

@@ -67,12 +67,6 @@ export default function LoginPage() {
                             Entrar
                         </Button>
                     </form>
-                    <div className="mt-4 text-center text-sm text-gray-400">
-                        Não tem uma conta?{' '}
-                        <Link href="/register" className="text-primary-400 hover:text-primary-300 transition-colors">
-                            Cadastre-se
-                        </Link>
-                    </div>
                 </CardContent>
             </Card>
         </div>

@@ -73,7 +73,7 @@ export default function RegisterPage() {
                         </div>
                         <div className="space-y-2">
                             <Input
-                                label="Nome da Organização"
+                                label="Nome da Organização (Cliente)"
                                 type="text"
                                 placeholder="Minha Empresa"
                                 value={formData.organizationName}
@@ -81,7 +81,7 @@ export default function RegisterPage() {
                                 disabled={isLoading}
                             />
                             <p className="text-xs text-gray-500">
-                                Opcional - deixe em branco para usar uma organização padrão
+                                Preencha para criar um novo ambiente exclusivo para este cliente.
                             </p>
                         </div>
                         <Button

@@ -6,73 +6,111 @@ import {
   Param,
   UseGuards,
   Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InternalService } from './internal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import type { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('internal')
-@UseGuards(JwtAuthGuard)
 export class InternalController {
-  constructor(private readonly internalService: InternalService) {}
+  constructor(
+    private readonly internalService: InternalService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  @Post('onboarding')
+  async createOrganizationWithAdmin(@Body() body: any) {
+    const masterKey = this.configService.get<string>('MASTER_SECRET_KEY');
+    if (!masterKey || body.masterKey !== masterKey) {
+      throw new UnauthorizedException('Invalid master key');
+    }
+    return this.internalService.createOrganizationWithAdmin(body);
+  }
 
   @Get('rooms')
-  listRooms() {
-    return this.internalService.listRooms();
+  @UseGuards(JwtAuthGuard)
+  listRooms(@GetUser('organizationId') organizationId: string) {
+    return this.internalService.listRooms(organizationId);
   }
 
   @Post('rooms')
-  createRoom(@Body() body: { name: string }) {
-    return this.internalService.createRoom(body.name);
+  @UseGuards(JwtAuthGuard)
+  createRoom(
+    @Body() body: { name: string },
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.internalService.createRoom(body.name, organizationId);
   }
 
   @Get('rooms/:id/messages')
-  getMessages(@Param('id') id: string) {
-    return this.internalService.getRoomMessages(id);
+  @UseGuards(JwtAuthGuard)
+  getMessages(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.internalService.getRoomMessages(id, organizationId);
   }
 
   @Post('rooms/:id/messages')
+  @UseGuards(JwtAuthGuard)
   sendMessage(
     @Param('id') id: string,
     @Body() body: { content: string },
     @Req() req: Request & { user?: { id: string } },
+    @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id as string;
-    return this.internalService.sendRoomMessage(id, userId, body.content);
+    return this.internalService.sendRoomMessage(id, userId, body.content, organizationId);
   }
 
   @Get('users')
-  async listUsers() {
-    return this.internalService.listUsers();
+  @UseGuards(JwtAuthGuard)
+  async listUsers(@GetUser('organizationId') organizationId: string) {
+    return this.internalService.listUsers(organizationId);
   }
 
   @Get('dm')
-  listDMs(@Req() req: Request & { user?: { id: string } }) {
+  @UseGuards(JwtAuthGuard)
+  listDMs(
+    @Req() req: Request & { user?: { id: string } },
+    @GetUser('organizationId') organizationId: string,
+  ) {
     const userId = req.user?.id as string;
-    return this.internalService.listDMs(userId);
+    return this.internalService.listDMs(userId, organizationId);
   }
 
   @Post('dm')
+  @UseGuards(JwtAuthGuard)
   openDM(
     @Body() body: { targetUserId: string },
     @Req() req: Request & { user?: { id: string } },
+    @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id as string;
-    return this.internalService.openDM(userId, body.targetUserId);
+    return this.internalService.openDM(userId, body.targetUserId, organizationId);
   }
 
   @Get('dm/:id/messages')
-  getDMMessages(@Param('id') id: string) {
-    return this.internalService.getDMMessages(id);
+  @UseGuards(JwtAuthGuard)
+  getDMMessages(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.internalService.getDMMessages(id, organizationId);
   }
 
   @Post('dm/:id/messages')
+  @UseGuards(JwtAuthGuard)
   sendDMMessage(
     @Param('id') id: string,
     @Body() body: { content: string },
     @Req() req: Request & { user?: { id: string } },
+    @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id as string;
-    return this.internalService.sendDMMessage(id, userId, body.content);
+    return this.internalService.sendDMMessage(id, userId, body.content, organizationId);
   }
 }

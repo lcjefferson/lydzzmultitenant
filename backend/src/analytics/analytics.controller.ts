@@ -1,6 +1,7 @@
-import { Controller, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @Controller('analytics')
 @UseGuards(JwtAuthGuard)
@@ -8,35 +9,43 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('dashboard')
-  getDashboardMetrics(@Request() req) {
+  getDashboardMetrics(
+    @GetUser('id') userId: string,
+    @GetUser('role') role: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.analyticsService.getDashboardMetrics(
-      req.user.id,
-      req.user.role,
-      req.user.organizationId,
+      userId,
+      role,
+      organizationId,
     );
   }
 
   @Get('conversations')
-  getConversationStats(@Request() req) {
+  getConversationStats(
+    @GetUser('id') userId: string,
+    @GetUser('role') role: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.analyticsService.getConversationStats(
-      req.user.id,
-      req.user.role,
-      req.user.organizationId,
+      userId,
+      role,
+      organizationId,
     );
   }
 
   @Get('leads')
-  getLeadStats() {
-    return this.analyticsService.getLeadStats();
+  getLeadStats(@GetUser('organizationId') organizationId: string) {
+    return this.analyticsService.getLeadStats(organizationId);
   }
 
   @Get('reports/contracts')
-  getContractsReport() {
-    return this.analyticsService.getContractsReport();
+  getContractsReport(@GetUser('organizationId') organizationId: string) {
+    return this.analyticsService.getContractsReport(organizationId);
   }
 
   @Get('reports/consultants')
-  getConsultantReport() {
-    return this.analyticsService.getConsultantReport();
+  getConsultantReport(@GetUser('organizationId') organizationId: string) {
+    return this.analyticsService.getConsultantReport(organizationId);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { UpdateConversationDto } from './dto/update-conversation.dto';
@@ -8,15 +8,10 @@ import { Prisma } from '@prisma/client';
 export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateConversationDto) {
-    const organization = await this.prisma.organization.findFirst();
-    if (!organization) {
-      throw new Error('No organization found');
-    }
-
+  async create(dto: CreateConversationDto, organizationId: string) {
     const existingLead = await this.prisma.lead.findFirst({
       where: {
-        organizationId: organization.id,
+        organizationId,
         phone: dto.contactIdentifier,
       },
     });
@@ -30,19 +25,19 @@ export class ConversationsService {
           status: 'Lead Novo',
           temperature: 'cold',
           source: 'conversation',
-          organizationId: organization.id,
+          organizationId,
         },
       }));
 
     const defaultAgent = await this.prisma.agent.findFirst({
-      where: { organizationId: organization.id, isActive: true },
+      where: { organizationId, isActive: true },
       orderBy: { updatedAt: 'desc' },
     });
 
     return this.prisma.conversation.create({
       data: {
         ...dto,
-        organizationId: organization.id,
+        organizationId,
         leadId: lead.id,
         agentId: defaultAgent?.id,
       },
@@ -79,8 +74,8 @@ export class ConversationsService {
     });
   }
 
-  async findOne(id: string) {
-    return this.prisma.conversation.findUnique({
+  async findOne(id: string, organizationId: string) {
+    const conversation = await this.prisma.conversation.findUnique({
       where: { id },
       include: {
         messages: {
@@ -92,16 +87,30 @@ export class ConversationsService {
         channel: true,
       },
     });
+
+    if (!conversation || conversation.organizationId !== organizationId) {
+      return null;
+    }
+    return conversation;
   }
 
-  async update(id: string, dto: UpdateConversationDto) {
+  async update(id: string, dto: UpdateConversationDto, organizationId: string) {
+    const conversation = await this.findOne(id, organizationId);
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found or access denied');
+    }
+
     return this.prisma.conversation.update({
       where: { id },
       data: dto,
     });
   }
 
-  async remove(id: string) {
+  async remove(id: string, organizationId: string) {
+    const conversation = await this.findOne(id, organizationId);
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found or access denied');
+    }
     return this.prisma.conversation.delete({ where: { id } });
   }
 }

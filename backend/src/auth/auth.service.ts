@@ -77,7 +77,10 @@ export class AuthService {
       },
     });
 
-    return this.generateTokens(user);
+    // Attach organization to user for generateTokens
+    const userWithOrg = { ...user, organization };
+
+    return this.generateTokens(userWithOrg);
   }
 
   async login(dto: LoginDto): Promise<AuthResponse> {
@@ -103,6 +106,7 @@ export class AuthService {
     }
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
+      include: { organization: true },
     });
 
     if (!user) {
@@ -132,6 +136,7 @@ export class AuthService {
 
       const user = await this.prisma.user.findUnique({
         where: { id: payload.sub },
+        include: { organization: true },
       });
 
       if (!user) {
@@ -144,7 +149,9 @@ export class AuthService {
     }
   }
 
-  private generateTokens(user: User): AuthResponse {
+  private generateTokens(
+    user: User & { organization?: Organization },
+  ): AuthResponse {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
@@ -169,6 +176,12 @@ export class AuthService {
         name: user.name,
         role: user.role,
         organizationId: user.organizationId,
+        organization: user.organization
+          ? {
+              name: user.organization.name,
+              slug: user.organization.slug,
+            }
+          : undefined,
       },
     };
   }

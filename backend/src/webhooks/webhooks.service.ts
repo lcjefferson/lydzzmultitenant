@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWebhookDto } from './dto/create-webhook.dto';
@@ -15,44 +15,56 @@ export class WebhooksService {
     private readonly httpService: HttpService,
   ) {}
 
-  async create(dto: CreateWebhookDto): Promise<Webhook> {
-    const organization = await this.prisma.organization.findFirst();
-    if (!organization) {
-      throw new Error('No organization found to link webhook');
-    }
-
+  async create(dto: CreateWebhookDto, organizationId: string): Promise<Webhook> {
     return this.prisma.webhook.create({
       data: {
         ...dto,
-        organizationId: organization.id,
+        organizationId,
       },
     });
   }
 
-  async findAll(): Promise<Webhook[]> {
-    return this.prisma.webhook.findMany();
+  async findAll(organizationId?: string): Promise<Webhook[]> {
+    const where: Prisma.WebhookWhereInput = {};
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+    return this.prisma.webhook.findMany({ where });
   }
 
-  async findOne(id: string): Promise<Webhook | null> {
-    return this.prisma.webhook.findUnique({ where: { id } });
+  async findOne(id: string, organizationId?: string): Promise<Webhook | null> {
+    const webhook = await this.prisma.webhook.findUnique({ where: { id } });
+    if (organizationId && webhook?.organizationId !== organizationId) {
+      return null;
+    }
+    return webhook;
   }
 
-  async update(id: string, dto: UpdateWebhookDto): Promise<Webhook> {
+  async update(id: string, dto: UpdateWebhookDto, organizationId?: string): Promise<Webhook> {
+    const webhook = await this.findOne(id, organizationId);
+    if (!webhook) {
+      throw new NotFoundException('Webhook not found');
+    }
     return this.prisma.webhook.update({
       where: { id },
       data: dto,
     });
   }
 
-  async remove(id: string): Promise<Webhook> {
+  async remove(id: string, organizationId?: string): Promise<Webhook> {
+    const webhook = await this.findOne(id, organizationId);
+    if (!webhook) {
+      throw new NotFoundException('Webhook not found');
+    }
     return this.prisma.webhook.delete({ where: { id } });
   }
 
-  async triggerWebhook(event: string, payload: Prisma.InputJsonValue) {
+  async triggerWebhook(event: string, payload: Prisma.InputJsonValue, organizationId: string) {
     const webhooks = await this.prisma.webhook.findMany({
       where: {
         isActive: true,
         events: { has: event },
+        organizationId,
       },
     });
 
@@ -60,6 +72,8 @@ export class WebhooksService {
       webhooks.map((webhook) => this.sendWebhook(webhook, event, payload)),
     );
   }
+
+
 
   async getPublicBaseUrl(): Promise<string | null> {
     const envUrl = process.env.APP_URL || process.env.PUBLIC_URL || process.env.NGROK_URL;

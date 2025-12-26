@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -9,7 +9,7 @@ import { User, Prisma } from '@prisma/client';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: CreateUserDto, organizationId: string): Promise<User> {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -18,42 +18,47 @@ export class UsersService {
     }
     const hashed = await bcrypt.hash(dto.password, 10);
 
-    // Get first organization for now
-    const organization = await this.prisma.organization.findFirst();
-    if (!organization) {
-      throw new Error('No organization found');
-    }
-
     return this.prisma.user.create({
       data: {
         email: dto.email,
         password: hashed,
         name: dto.name,
         role: dto.role ?? 'consultant',
-        organizationId: organization.id,
+        organizationId,
       },
     });
   }
 
-  async findAll(): Promise<User[]> {
-    return this.prisma.user.findMany();
+  async findAll(organizationId?: string): Promise<User[]> {
+    const where: Prisma.UserWhereInput = {};
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+    return this.prisma.user.findMany({ where });
   }
 
-  async findConsultants(): Promise<User[]> {
+  async findConsultants(organizationId?: string): Promise<User[]> {
+    const where: Prisma.UserWhereInput = {
+      role: { in: ['consultant', 'vendedor', 'admin', 'manager'] },
+      isActive: true,
+    };
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
     return this.prisma.user.findMany({
-      where: {
-        role: { in: ['consultant', 'vendedor', 'admin', 'manager'] },
-        isActive: true,
-      },
+      where,
       orderBy: { name: 'asc' },
     });
   }
 
-  async search(q: string): Promise<User[]> {
+  async search(q: string, organizationId?: string): Promise<User[]> {
     const s = (q || '').trim();
     const where: Prisma.UserWhereInput = {
       isActive: true,
     };
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
     if (s) {
       where.OR = [
         { name: { contains: s, mode: 'insensitive' } },
@@ -66,11 +71,20 @@ export class UsersService {
     });
   }
 
-  async findOne(id: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id } });
+  async findOne(id: string, organizationId?: string): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (organizationId && user?.organizationId !== organizationId) {
+        return null;
+    }
+    return user;
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<User> {
+  async update(id: string, dto: UpdateUserDto, organizationId?: string): Promise<User> {
+    if (organizationId) {
+        const user = await this.prisma.user.findFirst({ where: { id, organizationId }});
+        if (!user) throw new NotFoundException('User not found');
+    }
+
     const data: Prisma.UserUpdateInput = { ...dto };
     if (dto.password) {
       data.password = await bcrypt.hash(dto.password, 10);
@@ -78,7 +92,11 @@ export class UsersService {
     return this.prisma.user.update({ where: { id }, data });
   }
 
-  async remove(id: string): Promise<User> {
+  async remove(id: string, organizationId?: string): Promise<User> {
+    if (organizationId) {
+        const user = await this.prisma.user.findFirst({ where: { id, organizationId }});
+        if (!user) throw new NotFoundException('User not found');
+    }
     return this.prisma.user.delete({ where: { id } });
   }
 }

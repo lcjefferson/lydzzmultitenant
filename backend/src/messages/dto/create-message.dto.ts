@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsObject,
   IsNumber,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateMessageDto {
@@ -17,8 +18,9 @@ export class CreateMessageDto {
   @IsEnum(['text', 'image', 'file', 'audio', 'video'])
   type?: string;
 
-  @IsString()
+  @ValidateIf((o) => !o.type || o.type === 'text')
   @IsNotEmpty()
+  @IsString()
   content: string;
 
   @IsString()

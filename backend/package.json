@@ -23,7 +23,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "create-admin": "ts-node prisma/create-admin.ts"
   },
   "dependencies": {
     "@nestjs/axios": "^4.0.1",

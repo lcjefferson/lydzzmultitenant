@@ -74,10 +74,11 @@ export default function ChannelsPage() {
         try {
             const payload = {
                 ...formData,
+                accessToken: (formData as any).accessToken,
                 config:
                     formData.type === 'whatsapp' && formData.provider === 'uazapi'
                         ? { ...(formData.config || {}), provider: 'uazapi' }
-                        : formData.config,
+                        : { ...(formData.config || {}), provider: 'whatsapp-official' },
             };
             await createChannel.mutateAsync(payload as any);
             setShowCreateModal(false);
@@ -117,8 +118,8 @@ export default function ChannelsPage() {
                 title="Canais"
                 description="Gerencie seus canais de comunicação"
                 actions={
-                    <Button onClick={() => setShowCreateModal(true)}>
-                        <Plus className="h-4 w-4" />
+                    <Button onClick={() => setShowCreateModal(true)} className="text-gray-900 font-semibold">
+                        <Plus className="h-4 w-4 mr-2" />
                         Novo Canal
                     </Button>
                 }
@@ -210,7 +211,7 @@ export default function ChannelsPage() {
                                 <Plus className="h-8 w-8 text-accent-primary" />
                             </div>
                             <div className="text-center">
-                                <h3 className="font-semibold mb-1">Adicionar Canal</h3>
+                                <h3 className="font-semibold mb-1 text-neutral-900">Adicionar Canal</h3>
                                 <p className="text-sm text-text-secondary">
                                     Conecte um novo canal de comunicação
                                 </p>
@@ -228,14 +229,14 @@ export default function ChannelsPage() {
                 >
                     <Card
                         className="w-full max-w-md m-4 bg-white text-neutral-900"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="p-6">
-                            <div className="flex items-start justify-between mb-6">
-                                <h2 className="text-2xl font-bold text-neutral-900">Novo Canal</h2>
-                                <button
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="text-text-secondary hover:text-text-primary"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="p-6">
+                                <div className="flex items-start justify-between mb-6">
+                                    <h2 className="text-2xl font-bold text-neutral-900">Novo Canal</h2>
+                                    <button
+                                        onClick={() => setShowCreateModal(false)}
+                                        className="text-text-secondary hover:text-neutral-900"
                                 >
                                     <X className="h-6 w-6" />
                                 </button>
@@ -281,6 +282,36 @@ export default function ChannelsPage() {
                                             <option value="uazapi">Uazapi</option>
                                         </select>
                                     </div>
+                                )}
+
+                                {formData.type === 'whatsapp' && formData.provider === 'whatsapp-official' && (
+                                    <>
+                                        <Input
+                                            label="Phone Number ID"
+                                            value={(formData.config as any).phoneNumberId || ''}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                config: { ...formData.config, phoneNumberId: e.target.value }
+                                            })}
+                                            required
+                                            placeholder="Ex: 123456789012345"
+                                        />
+                                        <Input
+                                            label="Access Token"
+                                            value={(formData as any).accessToken || ''}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                // We store accessToken temporarily in formData for the form,
+                                                // but handleCreateChannel will need to extract it properly if it's not part of the initial state type
+                                                // Actually, let's update the state type or cast it.
+                                                // Since I cannot change the state definition easily without a big diff, I will just cast it here.
+                                                accessToken: e.target.value
+                                            } as any)}
+                                            required
+                                            type="password"
+                                            placeholder="Meta API Access Token"
+                                        />
+                                    </>
                                 )}
 
                                 <div className="flex gap-2 pt-4">
@@ -342,7 +373,7 @@ export default function ChannelsPage() {
                                     </div>
                                     <button
                                         onClick={() => setSelectedChannel(null)}
-                                        className="text-text-secondary hover:text-text-primary"
+                                        className="text-text-secondary hover:text-neutral-900"
                                     >
                                         <X className="h-6 w-6" />
                                     </button>

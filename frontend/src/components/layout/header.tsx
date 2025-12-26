@@ -80,9 +80,9 @@ export function Header({ title, description, actions }: HeaderProps) {
         <div className="border-b border-border bg-white sticky top-0 z-10">
             <div className="flex items-center justify-between p-6">
                 <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-neutral-900">{title}</h1>
+                    <h1 className="text-2xl font-bold text-white">{title}</h1>
                     {description && (
-                        <p className="text-sm text-neutral-700 mt-1">{description}</p>
+                        <p className="text-sm text-text-secondary mt-1">{description}</p>
                     )}
                 </div>
 

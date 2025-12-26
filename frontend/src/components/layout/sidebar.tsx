@@ -62,6 +62,13 @@ export function Sidebar() {
     const { data: conversations } = useConversations();
 
     const role = (typeof user?.role === 'string' ? user.role : 'user').toLowerCase();
+    
+    const rawOrgName = user?.organization?.name;
+    const orgDisplayName = rawOrgName || 'LydzzAI';
+    const orgInitials = rawOrgName
+        ? rawOrgName.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase()
+        : 'LA';
+
     const canAccess = (href: string) => {
         // Debug logging
         // console.log(`Checking access for ${href} with role ${role}`);
@@ -94,9 +101,9 @@ export function Sidebar() {
                 {!collapsed && (
                     <div className="flex items-center gap-2">
                         <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-                            <span className="text-white font-bold text-sm">LA</span>
+                            <span className="text-white font-bold text-sm">{orgInitials}</span>
                         </div>
-                        <span className="font-display font-bold text-lg text-neutral-900">LydzzAI</span>
+                        <span className="font-display font-bold text-lg text-neutral-900">{orgDisplayName}</span>
                     </div>
                 )}
                 <button

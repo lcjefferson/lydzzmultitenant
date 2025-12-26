@@ -25,6 +25,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { Prisma } from '@prisma/client';
 import { MessagesService } from '../messages/messages.service';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @Controller('webhooks')
 export class WebhooksController {
@@ -210,7 +211,7 @@ export class WebhooksController {
             phone: incomingMessage.from,
             status: 'Lead Novo',
             temperature: 'cold',
-            source: 'whatsapp',
+            source: channel.type,
             organizationId: channel.organization.id,
           },
         }));
@@ -336,11 +337,16 @@ export class WebhooksController {
     }
   }
 
+  // Uazapi Health Check (GET) - Avoid 401 on browser check
+  @Get('uazapi')
+  uazapiHealth() {
+    return { status: 'ok', message: 'Uazapi webhook endpoint is ready (POST to this URL to send events)' };
+  }
+
   // Uazapi Webhook (POST) - Receive messages
   @Post('uazapi')
   @HttpCode(200)
   async handleUazapiWebhook(@Body() payload: any) {
-    this.logger.log(`Received Uazapi webhook: ${JSON.stringify(payload)}`); // Log full body to find instance name
     try {
       this.logger.log('Incoming Uazapi webhook');
       this.logger.log(`Payload: ${JSON.stringify(payload, null, 2)}`);
@@ -364,33 +370,49 @@ export class WebhooksController {
       this.logger.log(`Parsed message: ${JSON.stringify(incomingMessage, null, 2)}`);
 
       const channels = await this.prisma.channel.findMany({
-        where: { type: 'whatsapp' },
+        where: { type: { in: ['whatsapp', 'instagram', 'facebook'] } },
         include: { organization: true },
       });
-      this.logger.log(`Found ${channels.length} whatsapp channels`);
+      this.logger.log(`Found ${channels.length} channels (whatsapp/instagram/facebook)`);
 
-      let channel =
-        channels.find((ch) => {
-          const cfg =
-            typeof ch.config === 'object' && ch.config
-              ? (ch.config as { instanceId?: string; token?: string; provider?: string })
-              : undefined;
-          return cfg?.provider === 'uazapi' || (!!cfg?.instanceId && !!cfg?.token);
-        }) || null;
+      let channel: any = null;
 
+      // 1. Try to match by instanceId (Most accurate for Uazapi)
       if (incomingMessage.instanceId) {
-        const matched = channels.find((ch) => {
+        channel = channels.find((ch) => {
           const cfg =
             typeof ch.config === 'object' && ch.config
               ? (ch.config as { instanceId?: string })
               : undefined;
           return cfg?.instanceId === incomingMessage.instanceId;
         });
-        channel = matched || channel;
       }
 
+      // 2. Fallback: Find first Uazapi provider if no instanceId matched
       if (!channel) {
-        this.logger.error('No Uazapi channel found for incoming message');
+          const uazapiChannels = channels.filter(ch => {
+              // Use the provider column as the primary source of truth
+              if (ch.provider === 'uazapi') return true;
+
+              // Fallback to config for legacy or inconsistent data
+              const cfg = typeof ch.config === 'object' ? ch.config as any : {};
+              return cfg.provider === 'uazapi';
+          });
+
+          if (uazapiChannels.length === 1) {
+              channel = uazapiChannels[0];
+              this.logger.log(`Using fallback channel (single Uazapi instance found): ${channel.name} (${channel.id})`);
+          } else if (uazapiChannels.length > 1) {
+              this.logger.warn(`Multiple Uazapi channels found (${uazapiChannels.length}) and no instanceId matched. Cannot determine target channel safely.`);
+              this.logger.warn(`Channels found: ${uazapiChannels.map(c => `${c.name} (${c.id})`).join(', ')}`);
+          } else {
+              this.logger.warn('No Uazapi channel found in fallback search.');
+          }
+      }
+      
+      if (!channel) {
+        this.logger.error(`No channel found for Uazapi instance: ${incomingMessage.instanceId}`);
+        this.logger.error(`Available channels: ${channels.map(c => `${c.name} (${(c.config as any)?.instanceId})`).join(', ')}`);
         return { status: 'no_channel' };
       }
 
@@ -410,7 +432,7 @@ export class WebhooksController {
             phone: incomingMessage.from,
             status: 'Lead Novo',
             temperature: 'cold',
-            source: 'whatsapp',
+            source: channel.type,
             organizationId: channel.organization.id,
           },
         }));
@@ -498,8 +520,9 @@ export class WebhooksController {
              } 
              // If we have no base64 but have mediaKey/messageId, try to download
              else if (incomingMessage.messageId) {
-                 const cfg = (channel?.config && typeof channel.config === 'object' ? channel.config : {}) as { token?: string };
+                 const cfg = (channel?.config && typeof channel.config === 'object' ? channel.config : {}) as { token?: string; serverUrl?: string };
                  let token = cfg.token;
+                 const serverUrl = cfg.serverUrl;
                  
                  // If token is missing in channel config, try env var
                  if (!token) {
@@ -511,7 +534,7 @@ export class WebhooksController {
 
                  if (token) {
                     this.logger.log(`Attempting to download media for message ${incomingMessage.messageId} using token ${token.substring(0, 5)}...`);
-                    const downloaded = await this.uazapiService.downloadMedia(incomingMessage.messageId, token);
+                    const downloaded = await this.uazapiService.downloadMedia(incomingMessage.messageId, token, serverUrl);
                     if (downloaded) {
                         buffer = downloaded.buffer;
                         mimetype = downloaded.mimetype;
@@ -706,40 +729,58 @@ export class WebhooksController {
   }
   @Post()
   @UseGuards(JwtAuthGuard)
-  create(@Body() createWebhookDto: CreateWebhookDto) {
-    return this.webhooksService.create(createWebhookDto);
+  create(
+    @Body() createWebhookDto: CreateWebhookDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.webhooksService.create(createWebhookDto, organizationId);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll() {
-    return this.webhooksService.findAll();
+  findAll(@GetUser('organizationId') organizationId: string) {
+    return this.webhooksService.findAll(organizationId);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
-  findOne(@Param('id') id: string) {
-    return this.webhooksService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.webhooksService.findOne(id, organizationId);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
-  update(@Param('id') id: string, @Body() updateWebhookDto: UpdateWebhookDto) {
-    return this.webhooksService.update(id, updateWebhookDto);
+  update(
+    @Param('id') id: string,
+    @Body() updateWebhookDto: UpdateWebhookDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.webhooksService.update(id, updateWebhookDto, organizationId);
   }
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
-  remove(@Param('id') id: string) {
-    return this.webhooksService.remove(id);
+  remove(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.webhooksService.remove(id, organizationId);
   }
 
   @Post('test')
   @UseGuards(JwtAuthGuard)
   async testWebhook(
     @Body() body: { event: string; payload: any },
+    @GetUser('organizationId') organizationId: string,
   ) {
-    await this.webhooksService.triggerWebhook(body.event, body.payload);
+    await this.webhooksService.triggerWebhook(
+      body.event,
+      body.payload,
+      organizationId,
+    );
     return { message: 'Webhook triggered' };
   }
 }

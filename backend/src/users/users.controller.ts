@@ -15,6 +15,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 
 @Controller('users')
 export class UsersController {
@@ -23,46 +24,62 @@ export class UsersController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  async create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  async create(
+    @Body() dto: CreateUserDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.create(dto, organizationId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Get()
-  async findAll() {
-    return this.usersService.findAll();
+  async findAll(@GetUser('organizationId') organizationId: string) {
+    return this.usersService.findAll(organizationId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('consultants')
-  async findConsultants() {
-    return this.usersService.findConsultants();
+  async findConsultants(@GetUser('organizationId') organizationId: string) {
+    return this.usersService.findConsultants(organizationId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('search')
-  async search(@Query('q') q: string) {
-    return this.usersService.search(q);
+  async search(
+    @Query('q') q: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.search(q, organizationId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.usersService.findOne(id);
+  async findOne(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.findOne(id, organizationId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Put(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.update(id, dto, organizationId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  async remove(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.usersService.remove(id, organizationId);
   }
 }

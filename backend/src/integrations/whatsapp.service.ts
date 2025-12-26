@@ -26,19 +26,33 @@ export class WhatsAppService {
     message: string,
     phoneNumberId: string,
     accessToken: string,
-  ): Promise<boolean> {
+  ): Promise<{ success: boolean; error?: string }> {
     try {
+      // Clean phone number ID (ensure it's just numbers)
+      const cleanPhoneId = phoneNumberId.replace(/\D/g, '');
+
+      // Clean phone number (remove +, spaces, dashes)
+      let cleanTo = to.replace(/\D/g, '');
+
+      // Heuristic for Brazilian numbers: if 10 or 11 digits, likely missing country code 55
+      if (cleanTo.length === 10 || cleanTo.length === 11) {
+        cleanTo = '55' + cleanTo;
+        this.logger.log(`Added country code 55 to number. Original: ${to}, New: ${cleanTo}`);
+      }
+      
       const payload: WhatsAppTextMessage = {
         messaging_product: 'whatsapp',
-        to: to,
+        to: cleanTo,
         type: 'text',
         text: {
           body: message,
         },
       };
 
+      this.logger.log(`Sending WhatsApp message to ${cleanTo} using PhoneID ${cleanPhoneId}`);
+
       const response = await axios.post<unknown>(
-        `${this.apiUrl}/${phoneNumberId}/messages`,
+        `${this.apiUrl}/${cleanPhoneId}/messages`,
         payload,
         {
           headers: {
@@ -49,14 +63,102 @@ export class WhatsAppService {
       );
 
       const data = response.data as { messages?: Array<{ id?: string }> };
-      this.logger.log(`Message sent to ${to}: ${data.messages?.[0]?.id}`);
-      return true;
+      this.logger.log(`Message sent to ${cleanTo}: ${data.messages?.[0]?.id}`);
+      return { success: true };
     } catch (error) {
-      const err = error as { message?: string };
-      this.logger.error(
-        `Failed to send WhatsApp message: ${err.message ?? 'unknown'}`,
+      let errorMessage = 'Unknown error';
+      if (axios.isAxiosError(error)) {
+        errorMessage = `Status: ${error.response?.status}. Data: ${JSON.stringify(error.response?.data)}`;
+        this.logger.error(`Failed to send WhatsApp message. ${errorMessage}`);
+      } else {
+        const err = error as { message?: string };
+        errorMessage = err.message ?? 'unknown';
+        this.logger.error(`Failed to send WhatsApp message: ${errorMessage}`);
+      }
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Send a media message via WhatsApp Business API
+   */
+  async sendMediaMessage(
+    to: string,
+    mediaType: 'image' | 'video' | 'audio' | 'document',
+    mediaUrl: string,
+    caption: string | undefined,
+    phoneNumberId: string,
+    accessToken: string,
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Clean phone number ID
+      const cleanPhoneId = phoneNumberId.replace(/\D/g, '');
+
+      // Clean phone number
+      let cleanTo = to.replace(/\D/g, '');
+
+      // Heuristic for Brazilian numbers
+      if (cleanTo.length === 10 || cleanTo.length === 11) {
+        cleanTo = '55' + cleanTo;
+      }
+
+      // Check for unsupported audio formats (WebM) and fallback to document
+      // WhatsApp Official API does not support WebM for 'audio' type (voice notes)
+      let finalMediaType = mediaType;
+      if (mediaType === 'audio' && mediaUrl.endsWith('.webm')) {
+          this.logger.warn(`Converting WebM audio to document for WhatsApp compatibility: ${mediaUrl}`);
+          finalMediaType = 'document';
+      }
+
+      const payload: any = {
+        messaging_product: 'whatsapp',
+        to: cleanTo,
+        type: finalMediaType,
+      };
+
+      // Map internal types to WhatsApp types
+      const mediaObject: any = {
+          link: mediaUrl
+      };
+
+      if (caption && finalMediaType !== 'audio') {
+          mediaObject.caption = caption;
+      }
+
+      // If it's a document, set filename
+      if (finalMediaType === 'document') {
+          mediaObject.filename = mediaUrl.split('/').pop() || 'file';
+      }
+
+      payload[finalMediaType] = mediaObject;
+
+      this.logger.log(`Sending WhatsApp ${finalMediaType} to ${cleanTo} using PhoneID ${cleanPhoneId}`);
+
+      const response = await axios.post<unknown>(
+        `${this.apiUrl}/${cleanPhoneId}/messages`,
+        payload,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        },
       );
-      return false;
+
+      const data = response.data as { messages?: Array<{ id?: string }> };
+      this.logger.log(`Media message sent to ${cleanTo}: ${data.messages?.[0]?.id}`);
+      return { success: true };
+    } catch (error) {
+      let errorMessage = 'Unknown error';
+      if (axios.isAxiosError(error)) {
+        errorMessage = `Status: ${error.response?.status}. Data: ${JSON.stringify(error.response?.data)}`;
+        this.logger.error(`Failed to send WhatsApp media message. ${errorMessage}`);
+      } else {
+        const err = error as { message?: string };
+        errorMessage = err.message ?? 'unknown';
+        this.logger.error(`Failed to send WhatsApp media message: ${errorMessage}`);
+      }
+      return { success: false, error: errorMessage };
     }
   }
 

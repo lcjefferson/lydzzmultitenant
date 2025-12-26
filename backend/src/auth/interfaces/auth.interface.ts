@@ -14,5 +14,9 @@ export interface AuthResponse {
     name: string;
     role: string;
     organizationId: string;
+    organization?: {
+      name: string;
+      slug: string;
+    };
   };
 }

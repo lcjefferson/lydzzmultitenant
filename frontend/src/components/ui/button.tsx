@@ -14,10 +14,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 
         const variants = {
             primary: 'bg-gradient-primary text-white shadow-glow hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(99,102,241,0.4)] focus:ring-accent-primary',
-            secondary: 'bg-white text-neutral-900 border border-neutral-200 shadow-sm hover:bg-neutral-50 focus:ring-neutral-200',
-            ghost: 'bg-transparent text-neutral-600 hover:bg-neutral-100 focus:ring-neutral-200',
+            secondary: 'bg-white text-text-primary border border-neutral-200 shadow-sm hover:bg-neutral-50 focus:ring-neutral-200',
+            ghost: 'bg-transparent text-text-secondary hover:bg-neutral-100 focus:ring-neutral-200',
             danger: 'bg-error text-white hover:bg-error/90 focus:ring-error',
-            outline: 'bg-transparent border border-neutral-300 text-neutral-700 hover:bg-neutral-50 focus:ring-neutral-300',
+            outline: 'bg-transparent border border-neutral-300 text-text-secondary hover:bg-neutral-50 focus:ring-neutral-300',
         };
 
         const sizes = {

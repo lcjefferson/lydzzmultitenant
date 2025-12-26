@@ -17,6 +17,9 @@ RUN npm run build
 
 FROM node:20-alpine
 
+# Install ffmpeg
+RUN apk add --no-cache ffmpeg
+
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules

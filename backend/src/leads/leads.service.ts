@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -13,16 +13,11 @@ export class LeadsService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  async create(dto: CreateLeadDto): Promise<Lead> {
-    const organization = await this.prisma.organization.findFirst();
-    if (!organization) {
-      throw new Error('No organization found to link lead');
-    }
-
+  async create(dto: CreateLeadDto, organizationId: string): Promise<Lead> {
     return this.prisma.lead.create({
       data: {
         ...dto,
-        organizationId: organization.id,
+        organizationId,
       },
     });
   }
@@ -43,10 +38,11 @@ export class LeadsService {
     },
     userId?: string,
     role?: string,
-    _organizationId?: string,
+    organizationId?: string,
   ): Promise<Lead[]> {
-    void _organizationId;
-    const where: Prisma.LeadWhereInput = {};
+    const where: Prisma.LeadWhereInput = {
+      organizationId,
+    };
     if (filters?.temperature) where.temperature = filters.temperature;
     if (filters?.status) {
       const status = filters.status;
@@ -69,14 +65,25 @@ export class LeadsService {
     if (filters?.source) where.source = filters.source;
     if (filters?.search) {
       const s = filters.search;
-      Object.assign(where, {
-        OR: [
-          { name: { contains: s, mode: 'insensitive' } },
-          { email: { contains: s, mode: 'insensitive' } },
-          { company: { contains: s, mode: 'insensitive' } },
-          { phone: { contains: s, mode: 'insensitive' } },
-        ],
-      });
+      const searchOr: Prisma.LeadWhereInput[] = [
+        { name: { contains: s, mode: 'insensitive' } },
+        { email: { contains: s, mode: 'insensitive' } },
+        { company: { contains: s, mode: 'insensitive' } },
+        { phone: { contains: s, mode: 'insensitive' } },
+      ];
+
+      if (where.OR) {
+        // If there is already an OR (from status), we need to handle it carefully.
+        // Prisma AND/OR logic: AND: [{ OR: status }, { OR: search }]
+        const existingOr = where.OR as Prisma.LeadWhereInput[];
+        delete where.OR;
+        where.AND = [
+            { OR: existingOr },
+            { OR: searchOr }
+        ]
+      } else {
+         Object.assign(where, { OR: searchOr });
+      }
     }
 
     const r = String(role || '').toLowerCase();
@@ -91,15 +98,24 @@ export class LeadsService {
     });
   }
 
-  async findOne(id: string): Promise<Lead | null> {
-    return this.prisma.lead.findUnique({
+  async findOne(id: string, organizationId?: string): Promise<Lead | null> {
+    const lead = await this.prisma.lead.findUnique({
       where: { id },
       include: { assignedTo: true },
     });
+    
+    if (organizationId && lead?.organizationId !== organizationId) {
+        return null;
+    }
+    return lead;
   }
 
-  async update(id: string, dto: UpdateLeadDto, userId?: string): Promise<Lead> {
+  async update(id: string, dto: UpdateLeadDto, userId?: string, organizationId?: string): Promise<Lead> {
     void userId;
+    if (organizationId) {
+        const lead = await this.prisma.lead.findFirst({ where: { id, organizationId }});
+        if (!lead) throw new NotFoundException('Lead not found');
+    }
     const updated = await this.prisma.lead.update({ where: { id }, data: dto });
     return updated;
   }
@@ -108,8 +124,13 @@ export class LeadsService {
     id: string,
     assignedToId: string,
     userId?: string,
+    organizationId?: string
   ): Promise<Lead> {
     void userId;
+    if (organizationId) {
+        const lead = await this.prisma.lead.findFirst({ where: { id, organizationId }});
+        if (!lead) throw new NotFoundException('Lead not found');
+    }
     const updated = await this.prisma.lead.update({
       where: { id },
       data: { assignedToId },
@@ -118,8 +139,12 @@ export class LeadsService {
     return updated;
   }
 
-  async addTag(id: string, tag: string): Promise<Lead> {
+  async addTag(id: string, tag: string, organizationId?: string): Promise<Lead> {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
+    if (organizationId && lead?.organizationId !== organizationId) {
+         throw new NotFoundException('Lead not found');
+    }
+    
     const cf = (lead?.customFields as Record<string, unknown>) || {};
     const existing = Array.isArray(cf.tags) ? (cf.tags as string[]) : [];
     const next = Array.from(new Set([...existing, tag])).filter(Boolean);
@@ -129,8 +154,12 @@ export class LeadsService {
     });
   }
 
-  async removeTag(id: string, tag: string): Promise<Lead> {
+  async removeTag(id: string, tag: string, organizationId?: string): Promise<Lead> {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
+    if (organizationId && lead?.organizationId !== organizationId) {
+         throw new NotFoundException('Lead not found');
+    }
+
     const cf = (lead?.customFields as Record<string, unknown>) || {};
     const existing = Array.isArray(cf.tags) ? (cf.tags as string[]) : [];
     const next = existing.filter((t) => t !== tag);
@@ -144,8 +173,13 @@ export class LeadsService {
     id: string,
     content: string,
     userId?: string,
+    organizationId?: string
   ): Promise<Lead> {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
+    if (organizationId && lead?.organizationId !== organizationId) {
+         throw new NotFoundException('Lead not found');
+    }
+
     const cf = (lead?.customFields as Record<string, unknown>) || {};
     const now = new Date().toISOString();
     const newComment: {
@@ -209,10 +243,15 @@ export class LeadsService {
 
   async getComments(
     id: string,
+    organizationId?: string
   ): Promise<
     Array<{ id: string; content: string; userId?: string; createdAt: string }>
   > {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
+    if (organizationId && lead?.organizationId !== organizationId) {
+         throw new NotFoundException('Lead not found');
+    }
+
     const cf = (lead?.customFields as Record<string, unknown>) || {};
     const existing = Array.isArray(cf.comments)
       ? (cf.comments as Array<{
@@ -225,7 +264,11 @@ export class LeadsService {
     return existing;
   }
 
-  async remove(id: string): Promise<Lead> {
+  async remove(id: string, organizationId?: string): Promise<Lead> {
+    if (organizationId) {
+        const lead = await this.prisma.lead.findFirst({ where: { id, organizationId }});
+        if (!lead) throw new NotFoundException('Lead not found');
+    }
     return this.prisma.lead.delete({ where: { id } });
   }
 }

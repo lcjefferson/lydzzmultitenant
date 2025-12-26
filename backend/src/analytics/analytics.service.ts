@@ -54,25 +54,76 @@ export class AnalyticsService {
     };
 
     // 1. Conversations
-    const currentConversations = await getCount(this.prisma.conversation, whereConversation, thirtyDaysAgo, now);
-    const previousConversations = await getCount(this.prisma.conversation, whereConversation, sixtyDaysAgo, thirtyDaysAgo);
-    const totalConversations = await this.prisma.conversation.count({ where: whereConversation });
+    const currentConversations = await getCount(
+      this.prisma.conversation,
+      whereConversation,
+      thirtyDaysAgo,
+      now,
+    );
+    const previousConversations = await getCount(
+      this.prisma.conversation,
+      whereConversation,
+      sixtyDaysAgo,
+      thirtyDaysAgo,
+    );
+    const totalConversations = await this.prisma.conversation.count({
+      where: whereConversation,
+    });
 
     // 2. Leads (Active/New)
     // For "Active Leads" metric, we usually show total active. For trend, we show "New leads created" trend.
-    const currentNewLeads = await getCount(this.prisma.lead, whereLead, thirtyDaysAgo, now);
-    const previousNewLeads = await getCount(this.prisma.lead, whereLead, sixtyDaysAgo, thirtyDaysAgo);
+    const currentNewLeads = await getCount(
+      this.prisma.lead,
+      whereLead,
+      thirtyDaysAgo,
+      now,
+    );
+    const previousNewLeads = await getCount(
+      this.prisma.lead,
+      whereLead,
+      sixtyDaysAgo,
+      thirtyDaysAgo,
+    );
     const activeLeads = await this.prisma.lead.count({ where: whereLead });
 
     // 3. Messages
-    const currentMessages = await getCount(this.prisma.message, {}, thirtyDaysAgo, now);
-    const previousMessages = await getCount(this.prisma.message, {}, sixtyDaysAgo, thirtyDaysAgo);
-    const totalMessages = await this.prisma.message.count();
+    const whereMessage: Prisma.MessageWhereInput = {};
+    if (organizationId) {
+      whereMessage.conversation = { organizationId };
+    }
+
+    const currentMessages = await getCount(
+      this.prisma.message,
+      whereMessage,
+      thirtyDaysAgo,
+      now,
+    );
+    const previousMessages = await getCount(
+      this.prisma.message,
+      whereMessage,
+      sixtyDaysAgo,
+      thirtyDaysAgo,
+    );
+    const totalMessages = await this.prisma.message.count({
+      where: whereMessage,
+    });
 
     // 4. Agents
-    const currentAgents = await getCount(this.prisma.agent, { organizationId }, thirtyDaysAgo, now);
-    const previousAgents = await getCount(this.prisma.agent, { organizationId }, sixtyDaysAgo, thirtyDaysAgo);
-    const totalAgents = await this.prisma.agent.count({ where: { organizationId } });
+    const currentAgents = await getCount(
+      this.prisma.agent,
+      { organizationId },
+      thirtyDaysAgo,
+      now,
+    );
+    const previousAgents = await getCount(
+      this.prisma.agent,
+      { organizationId },
+      sixtyDaysAgo,
+      thirtyDaysAgo,
+    );
+    const totalAgents = await this.prisma.agent.count({
+      where: { organizationId },
+    });
 
     return {
       totalConversations: {
@@ -129,14 +180,21 @@ export class AnalyticsService {
     };
   }
 
-  async getLeadStats() {
+  async getLeadStats(organizationId?: string) {
+    const where: Prisma.LeadWhereInput = {};
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+
     const byStatus = await this.prisma.lead.groupBy({
       by: ['status'],
+      where,
       _count: { id: true },
     });
 
     const byTemperature = await this.prisma.lead.groupBy({
       by: ['temperature'],
+      where,
       _count: { id: true },
     });
 
@@ -146,21 +204,36 @@ export class AnalyticsService {
     };
   }
 
-  async getContractsReport() {
+  async getContractsReport(organizationId?: string) {
+    const where: Prisma.LeadWhereInput = { status: 'Contrato fechado' };
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+
     const closed = await this.prisma.lead.findMany({
-      where: { status: 'Contrato fechado' },
+      where,
       orderBy: { updatedAt: 'desc' },
       include: { assignedTo: true },
     });
     return closed;
   }
 
-  async getConsultantReport() {
-    const users = await this.prisma.user.findMany();
+  async getConsultantReport(organizationId?: string) {
+    const whereUser: Prisma.UserWhereInput = {};
+    if (organizationId) {
+      whereUser.organizationId = organizationId;
+    }
+
+    const users = await this.prisma.user.findMany({ where: whereUser });
     const result = await Promise.all(
       users.map(async (u) => {
+        const whereLead: Prisma.LeadWhereInput = { assignedToId: u.id };
+        if (organizationId) {
+          whereLead.organizationId = organizationId;
+        }
+
         const leads = await this.prisma.lead.findMany({
-          where: { assignedToId: u.id },
+          where: whereLead,
         });
         const closed = leads.filter(
           (l) => l.status === 'Contrato fechado',
