@@ -54,6 +54,11 @@ ssh $SERVER_USER@$SERVER_HOST "
     free -h
 "
 
+# 3.4.1 Optimize Docker Network (Disable IPv6 & Fix DNS)
+echo -e "${YELLOW}Optimizing Docker Network...${NC}"
+scp daemon.json $SERVER_USER@$SERVER_HOST:/etc/docker/daemon.json
+ssh $SERVER_USER@$SERVER_HOST "systemctl restart docker"
+
 # 3.5 Setup Firewall (UFW) - Fix for connection timeouts
 echo -e "${YELLOW}Configuring Firewall (UFW) to allow ports...${NC}"
 ssh $SERVER_USER@$SERVER_HOST "

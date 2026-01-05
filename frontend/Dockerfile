@@ -7,8 +7,12 @@ WORKDIR /app
 # Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json* ./
+
+RUN npm config set registry https://registry.npmjs.org/
+RUN npm config set fetch-retry-maxtimeout 600000
+RUN npm config set fetch-retry-mintimeout 10000
 RUN npm install -g npm@latest
-RUN npm install
+RUN npm install --no-audit
 
 # Rebuild the source code only when needed
 FROM base AS builder
