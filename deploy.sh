@@ -37,6 +37,23 @@ else
     echo -e "${YELLOW}WARNING: .env.prod not found. Please ensure .env exists on the server.${NC}"
 fi
 
+# 3.4 Setup Swap Memory (Prevent OOM Killer during build)
+echo -e "${YELLOW}Configuring Swap Memory (4GB)...${NC}"
+ssh $SERVER_USER@$SERVER_HOST "
+    if [ ! -f /swapfile ]; then
+        echo 'Creating 4GB swapfile...'
+        fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+        chmod 600 /swapfile
+        mkswap /swapfile
+        swapon /swapfile
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        echo 'Swap created successfully.'
+    else
+        echo 'Swapfile already exists.'
+    fi
+    free -h
+"
+
 # 3.5 Setup Firewall (UFW) - Fix for connection timeouts
 echo -e "${YELLOW}Configuring Firewall (UFW) to allow ports...${NC}"
 ssh $SERVER_USER@$SERVER_HOST "

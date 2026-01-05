@@ -43,6 +43,6 @@ else
     echo "⚠️ UFW não instalado."
 fi
 
-# 5. Verificar Portas Ouvindo
+# 5. Verificar Portas Ouvindog
 echo -e "\n${GREEN}5. Verificando Portas Abertas...${NC}"
 netstat -tulpn | grep -E '(:80|:443|:4000|:4001)'
