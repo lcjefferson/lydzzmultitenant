@@ -4,7 +4,11 @@ import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const isProd = process.env.NODE_ENV === 'production';
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: isProd,
+    logger: isProd ? ['error', 'warn'] : ['log', 'error', 'warn', 'debug', 'verbose'],
+  });
 
   // Increase body limit for Base64 images
   app.use(json({ limit: '50mb' }));
@@ -26,6 +30,7 @@ async function bootstrap() {
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
+      disableErrorMessages: isProd,
     }),
   );
 

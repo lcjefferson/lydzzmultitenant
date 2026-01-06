@@ -1,6 +1,42 @@
-node_modules/.cache/prisma/master/2ba551f319ab1df4bc874a89965d8b3641056773/windows/libquery-engine
-node_modules/.cache/prisma/master/2ba551f319ab1df4bc874a89965d8b3641056773/windows/libquery-engine.gz.sha256
-node_modules/.cache/prisma/master/2ba551f319ab1df4bc874a89965d8b3641056773/windows/libquery-engine.sha256
-node_modules/.cache/prisma/master/2ba551f319ab1df4bc874a89965d8b3641056773/windows/schema-engine
-node_modules/.cache/prisma/master/2ba551f319ab1df4bc874a89965d8b3641056773/windows/schema-engine.gz.sha256
-node_modules/.cache/prisma/master/2ba551f319ab1df4bc874a89965d8b3641056773/windows/schema-engine.sha256
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+
+# Next.js
+.next/
+out/
+build/
+
+# Production
+dist/
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables (Protect your secrets!)
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# Docker
+postgres_data/
+redis_data/
+uploads/
+
+# Prisma
+backend/prisma/migrations/migration_lock.toml
+
+# IDEs
+.vscode/
+.idea/

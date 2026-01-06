@@ -8,12 +8,11 @@ COPY prisma ./prisma/
 RUN npm config set registry https://registry.npmjs.org/
 RUN npm config set fetch-retry-maxtimeout 600000
 RUN npm config set fetch-retry-mintimeout 10000
-RUN npm install -g npm@latest
 
 # Install openssl for Prisma
 RUN apt-get update -y && apt-get install -y openssl
 
-RUN npm install --no-audit
+RUN npm ci
 
 COPY . .
 
@@ -30,8 +29,10 @@ RUN apt-get update -y && apt-get install -y ffmpeg openssl ca-certificates && rm
 
 WORKDIR /app
 
-COPY --from=builder /app/node_modules ./node_modules
+ENV NODE_ENV=production
+
 COPY --from=builder /app/package*.json ./
+RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 
