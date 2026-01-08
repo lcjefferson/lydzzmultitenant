@@ -46,6 +46,27 @@ Write-Host "   WS_URL:  $wsUrl" -ForegroundColor Gray
 Write-Host "🔑 Realizando login no Docker Hub..." -ForegroundColor Yellow
 docker login
 
+# Função para incrementar versão
+function Increment-Version {
+    param([string]$Path)
+    
+    if (Test-Path $Path) {
+        $json = Get-Content $Path -Raw | ConvertFrom-Json
+        $version = [version]$json.version
+        $newVersion = "{0}.{1}.{2}" -f $version.Major, $version.Minor, ($version.Build + 1)
+        $json.version = $newVersion
+        $json | ConvertTo-Json -Depth 10 | Set-Content $Path
+        return $newVersion
+    }
+    return "0.0.1"
+}
+
+# Incrementar versão do Frontend
+Write-Host "Atualizando versão do Frontend..." -ForegroundColor Yellow
+$frontendPackage = "frontend/package.json"
+$newVersion = Increment-Version -Path $frontendPackage
+Write-Host "Nova versão: $newVersion" -ForegroundColor Green
+
 # 4. Build & Push Backend
 Write-Host "🏗️  Construindo imagem do Backend..." -ForegroundColor Yellow
 docker build -t "$DockerUser/lydzz-backend:$Tag" -f backend/Dockerfile ./backend

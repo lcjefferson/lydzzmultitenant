@@ -32,9 +32,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/prisma ./prisma
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
+
+RUN mkdir -p /app/uploads && chmod 777 /app/uploads
 
 EXPOSE 3000
 

@@ -122,12 +122,14 @@ export class LeadsController {
   addComment(
     @Param('id') id: string,
     @Body() body: { content: string; userId?: string },
+    @Req() req: Request & { user?: { id: string } },
     @GetUser('organizationId') organizationId: string,
   ) {
+    const userId = req.user?.id || body.userId;
     return this.leadsService.addComment(
       id,
       body.content,
-      body.userId,
+      userId,
       organizationId,
     );
   }

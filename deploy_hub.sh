@@ -44,4 +44,11 @@ docker compose -f docker-compose.hub.yml up -d
 echo "🧹 Limpar imagens não utilizadas..."
 docker image prune -f || true
 
+echo "🔧 Atualizando configuração do Nginx..."
+cp nginx_vps.conf /etc/nginx/sites-available/lydzz.com.br
+# Garantir link simbólico (caso não exista)
+ln -sf /etc/nginx/sites-available/lydzz.com.br /etc/nginx/sites-enabled/
+# Testar e recarregar
+nginx -t && systemctl reload nginx
+
 echo "✅ Deploy Remoto Concluído com Sucesso!"

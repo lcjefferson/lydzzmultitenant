@@ -41,6 +41,9 @@ scp docker-compose.hub.yml "$VpsUser@$VpsHost`:$RemoteDir/"
 Write-Host "   -> Enviando deploy_hub.sh..."
 scp deploy_hub.sh "$VpsUser@$VpsHost`:$RemoteDir/"
 
+Write-Host "   -> Enviando nginx_vps.conf..."
+scp nginx_vps.conf "$VpsUser@$VpsHost`:$RemoteDir/"
+
 # Verificar se .env.prod existe
 if (Test-Path ".env.prod") {
     Write-Host "   -> Enviando .env.prod como .env..."

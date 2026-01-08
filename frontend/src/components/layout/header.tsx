@@ -64,7 +64,10 @@ export function Header({ title, description, actions }: HeaderProps) {
 
     const getNotificationTitle = (n: any) => {
         const leadName = n.data?.leadName || 'Lead';
-        if (n.type === 'lead_comment_added') return `Novo comentário em ${leadName}`;
+        if (n.type === 'lead_comment_added') {
+            const user = n.data?.commentUser;
+            return user ? `Novo comentário de ${user} em ${leadName}` : `Novo comentário em ${leadName}`;
+        }
         if (n.type === 'lead_message_received') return `Nova mensagem de ${leadName}`;
         if (n.type === 'lead_delegated') return `Lead ${leadName} atribuído a você`;
         return n.type || 'Nova notificação';

@@ -21,6 +21,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useConversations } from '@/hooks/api/use-conversations';
+import pkg from '../../../package.json';
 
 const navigation = [
     {
@@ -208,6 +209,11 @@ export function Sidebar() {
                     <LogOut className="h-4 w-4 flex-shrink-0" />
                     {!collapsed && <span className="text-sm font-medium">Sair</span>}
                 </button>
+                {!collapsed && (
+                    <div className="text-xs text-center text-text-tertiary mt-2">
+                        v{pkg.version}
+                    </div>
+                )}
             </div>
         </div>
     );

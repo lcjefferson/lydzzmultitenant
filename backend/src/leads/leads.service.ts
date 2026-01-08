@@ -180,29 +180,41 @@ export class LeadsService {
          throw new NotFoundException('Lead not found');
     }
 
+    let userName: string | undefined;
+    if (userId) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        userName = user.name || user.email || undefined;
+      }
+    }
+
     const cf = (lead?.customFields as Record<string, unknown>) || {};
     const now = new Date().toISOString();
     const newComment: {
       id: string;
       content: string;
       userId?: string;
+      userName?: string;
       createdAt: string;
     } = {
       id: randomUUID(),
       content,
       userId,
+      userName,
       createdAt: now,
     };
     const existing: Array<{
       id: string;
       content: string;
       userId?: string;
+      userName?: string;
       createdAt: string;
     }> = Array.isArray(cf.comments)
       ? (cf.comments as Array<{
           id: string;
           content: string;
           userId?: string;
+          userName?: string;
           createdAt: string;
         }>)
       : [];
@@ -210,6 +222,7 @@ export class LeadsService {
       id: string;
       content: string;
       userId?: string;
+      userName?: string;
       createdAt: string;
     }> = [...existing, newComment];
 
@@ -218,7 +231,7 @@ export class LeadsService {
       data: {
         customFields: {
           ...(cf || {}),
-          comments: next as unknown as Prisma.InputJsonValue,
+          comments: next as unknown as any,
         },
       },
     });
@@ -234,6 +247,7 @@ export class LeadsService {
           leadName: lead.name,
           commentContent: content,
           commentId: newComment.id,
+          commentUser: userName,
         },
       });
     }
@@ -245,7 +259,7 @@ export class LeadsService {
     id: string,
     organizationId?: string
   ): Promise<
-    Array<{ id: string; content: string; userId?: string; createdAt: string }>
+    Array<{ id: string; content: string; userId?: string; userName?: string; createdAt: string }>
   > {
     const lead = await this.prisma.lead.findUnique({ where: { id } });
     if (organizationId && lead?.organizationId !== organizationId) {
@@ -253,15 +267,41 @@ export class LeadsService {
     }
 
     const cf = (lead?.customFields as Record<string, unknown>) || {};
-    const existing = Array.isArray(cf.comments)
+    const comments = Array.isArray(cf.comments)
       ? (cf.comments as Array<{
           id: string;
           content: string;
           userId?: string;
+          userName?: string;
           createdAt: string;
         }>)
       : [];
-    return existing;
+
+    // Enriched comments with user names
+    const userIdsToFetch = new Set<string>();
+    comments.forEach((c) => {
+      if (c.userId) {
+        userIdsToFetch.add(c.userId);
+      }
+    });
+
+    if (userIdsToFetch.size > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: Array.from(userIdsToFetch) } },
+        select: { id: true, name: true, email: true },
+      });
+
+      const userMap = new Map(users.map((u) => [u.id, u.name || u.email]));
+
+      return comments.map((c) => {
+        if (c.userId && userMap.has(c.userId)) {
+          return { ...c, userName: userMap.get(c.userId) };
+        }
+        return c;
+      });
+    }
+
+    return comments;
   }
 
   async remove(id: string, organizationId?: string): Promise<Lead> {

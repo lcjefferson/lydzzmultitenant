@@ -81,6 +81,7 @@ export class UazapiService {
     token: string,
     apiUrl?: string,
     channelType: string = 'whatsapp',
+    fileName?: string,
   ): Promise<boolean> {
     try {
       const baseUrl = apiUrl || this.apiUrl;
@@ -122,6 +123,10 @@ export class UazapiService {
 
       if (caption) {
           payload.message = caption; // Assuming 'message' field for caption based on standard patterns
+      }
+
+      if (fileName) {
+          payload.fileName = fileName;
       }
 
       this.logger.log(`Sending Uazapi media to ${url} with payload: ${JSON.stringify({ ...payload, file: payload.file.substring(0, 50) + '...' })}`);

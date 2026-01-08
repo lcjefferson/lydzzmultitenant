@@ -421,11 +421,16 @@ function Comments({ leadId }: { leadId: string }) {
           <p className="text-sm text-text-secondary">Sem comentários</p>
         ) : (
           comments.map((c) => (
-            <div key={c.id} className="p-2 rounded-md bg-neutral-100 border border-neutral-300">
-              <p className="text-sm">{c.content}</p>
-              <p className="text-xs text-text-tertiary mt-1">
-                {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true, locale: ptBR })}
-              </p>
+            <div key={c.id} className="p-3 rounded-md bg-neutral-100 border border-neutral-200">
+              <div className="flex justify-between items-start mb-1">
+                <span className="text-xs font-bold text-neutral-700">
+                  {c.userName || 'Usuário'}
+                </span>
+                <span className="text-xs text-text-tertiary">
+                  {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true, locale: ptBR })}
+                </span>
+              </div>
+              <p className="text-sm text-neutral-800 whitespace-pre-wrap">{c.content}</p>
             </div>
           ))
         )}

@@ -342,10 +342,11 @@ class ApiService {
         const formData = new FormData();
         formData.append('file', file);
         const endpoint = file.type.startsWith('image/') ? '/upload/image' : '/upload/file';
-        const response = await this.api.post(endpoint, formData, {
+        // Let the browser set the Content-Type with boundary automatically
+        const response = await this.api.post<{ path: string; filename: string; originalName: string; mimetype: string }>(endpoint, formData, {
             headers: {
-                'Content-Type': 'multipart/form-data',
-            },
+                'Content-Type': undefined,
+            } as any,
         });
         return response.data;
     }
@@ -403,7 +404,7 @@ class ApiService {
 
     async getLeadComments(id: string) {
         const response = await this.api.get(`/leads/${id}/comments`);
-        return response.data as Array<{ id: string; content: string; userId?: string; createdAt: string }>;
+        return response.data as Array<{ id: string; content: string; userId?: string; userName?: string; createdAt: string }>;
     }
 
     async delegateLead(id: string, assignedToId: string) {

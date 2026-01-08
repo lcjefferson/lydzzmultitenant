@@ -336,10 +336,12 @@ export class MessagesService {
       if (conversation && ['whatsapp', 'instagram', 'facebook'].includes(conversation.channel.type)) {
         let mediaUrl: string | undefined;
         let mediaType: 'image' | 'video' | 'audio' | 'document' | undefined;
+        let fileName: string | undefined;
 
         // Handle media messages (image, file, audio, video)
         if (dto.type === 'image' || dto.type === 'file' || dto.type === 'audio' || dto.type === 'video') {
             const relativePath = dto.attachments?.url || dto.metadata?.file?.path || dto.attachments?.path;
+            fileName = dto.attachments?.name || dto.metadata?.file?.originalName || dto.metadata?.file?.filename;
             
             if (relativePath) {
                 // Construct full URL for Uazapi if path is relative
@@ -363,7 +365,7 @@ export class MessagesService {
             else mediaType = 'document'; // Default for 'file'
         }
 
-        await this.sendChannelMessage(conversation, dto.content, mediaUrl, mediaType);
+        await this.sendChannelMessage(conversation, dto.content, mediaUrl, mediaType, fileName);
       }
 
       if (conversation && !conversation.agentId && conversation.status !== 'active') {
@@ -511,13 +513,14 @@ export class MessagesService {
       contactIdentifier: string;
       channel: {
         type: string;
-        config: import('@prisma/client').Prisma.JsonValue | null;
+        config: any;
         accessToken?: string | null;
       };
     },
     message: string,
     mediaUrl?: string,
     mediaType?: 'image' | 'video' | 'audio' | 'document',
+    fileName?: string,
   ) {
     try {
       const channel = conversation.channel;
@@ -580,6 +583,7 @@ export class MessagesService {
             token,
             config?.serverUrl,
             channel.type,
+            fileName,
           );
           if (!success) {
             this.logger.error(`Failed to send media message via Uazapi to ${conversation.contactIdentifier}`);

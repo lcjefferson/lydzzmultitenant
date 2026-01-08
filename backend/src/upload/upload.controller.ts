@@ -46,7 +46,7 @@ export class UploadController {
         cb(null, true);
       },
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB
+        fileSize: 50 * 1024 * 1024, // 50MB
       },
     }),
   )
@@ -111,7 +111,7 @@ export class UploadController {
                  };
             }
         } catch (error) {
-            this.logger.error(`Failed to convert WebM to MP3: ${error.message}`);
+            this.logger.error(`Failed to convert WebM to MP3: ${(error as any).message}`);
             // Fallback to original file if conversion fails
         }
     }
