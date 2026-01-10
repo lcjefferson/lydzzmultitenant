@@ -289,20 +289,18 @@ export class MessagesService {
           });
         }
 
-        if (lead.assignedToId) {
-          await this.notificationsService.create({
-            type: 'lead_message_received',
-            entityId: lead.id,
-            userId: lead.assignedToId,
-            organizationId: lead.organizationId,
-            data: {
-              leadId: lead.id,
-              leadName: lead.name,
-              messageContent: dto.content,
-              conversationId: conversation.id,
-            },
-          });
-        }
+        await this.notificationsService.notifyOrganization(
+          lead.organizationId,
+          '', // No internal sender to exclude for inbound messages
+          'lead_message_received',
+          lead.id,
+          {
+            leadId: lead.id,
+            leadName: lead.name,
+            messageContent: dto.content,
+            conversationId: conversation.id,
+          }
+        );
       }
 
       if (conversation && !conversation.agentId && conversation.status !== 'active') {

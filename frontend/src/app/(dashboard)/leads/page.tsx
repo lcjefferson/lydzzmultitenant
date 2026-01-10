@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,6 @@ import { useLeadStats } from '@/hooks/api/use-analytics';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
 import { toast } from 'sonner';
 
 export default function LeadsPage() {
@@ -643,16 +642,53 @@ function Comments({ leadId }: { leadId: string }) {
     const [content, setContent] = useState('');
     const commentsQuery = useLeadComments(leadId);
     const addComment = useAddLeadComment();
+    const inputRef = useRef<HTMLInputElement>(null);
+    const commentsEndRef = useRef<HTMLDivElement>(null);
 
     const comments = commentsQuery.data || [];
+
+    useEffect(() => {
+        if (commentsEndRef.current) {
+            commentsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [comments.length]);
 
     const handleAdd = async () => {
         const text = content.trim();
         if (!text) return;
+
+        // Optimistic UI update: clear and focus immediately
+        setContent('');
+        // Ensure focus is kept immediately
+        setTimeout(() => {
+            if (inputRef.current) {
+                inputRef.current.focus();
+            }
+        }, 0);
+
         try {
             await addComment.mutateAsync({ id: leadId, content: text });
-            setContent('');
-        } catch {}
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            // Restore content on error
+            setContent(text);
+        } finally {
+            // Ensure focus is restored after any potential re-renders or data refetching
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                }
+            }, 50);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            // Avoid submitting when using IME (e.g. for accents or Asian languages)
+            if (e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            handleAdd();
+        }
     };
 
     return (
@@ -676,9 +712,17 @@ function Comments({ leadId }: { leadId: string }) {
                         </div>
                     ))
                 )}
+                <div ref={commentsEndRef} />
             </div>
             <div className="flex gap-2 items-end">
-                <Input label="Adicionar comentário" value={content} onChange={(e) => setContent(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
+                <Input 
+                    ref={inputRef}
+                    label="Adicionar comentário" 
+                    value={content} 
+                    onChange={(e) => setContent(e.target.value)} 
+                    onKeyDown={handleKeyDown}
+                    className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" 
+                />
                 <Button size="sm" className="h-12 px-4 text-sm" onClick={handleAdd} isLoading={addComment.isPending}>Comentar</Button>
             </div>
         </div>

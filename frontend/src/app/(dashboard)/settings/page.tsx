@@ -7,12 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
-import { Save } from 'lucide-react';
+import { Save, Pencil, Trash } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IntegrationsForm } from '@/components/settings/integrations-form';
 import { useAuth } from '@/contexts/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { useUpdateUser } from '@/hooks/api/use-users';
+import type { UpdateUserDto, User } from '@/types/api';
 
 export default function SettingsPage() {
     const { user } = useAuth();
@@ -22,8 +24,34 @@ export default function SettingsPage() {
         queryFn: () => api.getUsers(),
         enabled: isAdmin,
     });
+    const updateUser = useUpdateUser();
     const users = usersQuery.data || [];
     const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'consultant' as 'admin' | 'manager' | 'consultant' });
+    const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [editForm, setEditForm] = useState<UpdateUserDto>({});
+
+    const handleEditClick = (u: User) => {
+        setEditingUser(u);
+        setEditForm({
+            name: u.name,
+            email: u.email,
+            role: u.role,
+            password: '',
+        });
+    };
+
+    const handleUpdate = async () => {
+        if (!editingUser) return;
+        const data = { ...editForm };
+        if (!data.password) delete data.password;
+
+        try {
+            await updateUser.mutateAsync({ id: editingUser.id, data });
+            setEditingUser(null);
+            void usersQuery.refetch();
+        } catch {}
+    };
+
     return (
         <div>
             <Header title="Configurações" description="Gerencie suas preferências e conta" />
@@ -139,6 +167,14 @@ export default function SettingsPage() {
                                                             <Badge variant={u.isActive ? 'success' : 'default'}>{u.isActive ? 'Ativo' : 'Inativo'}</Badge>
                                                             <Button
                                                                 size="sm"
+                                                                variant="secondary"
+                                                                onClick={() => handleEditClick(u)}
+                                                                title="Editar Usuário"
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
                                                                 variant="danger"
                                                                 onClick={async () => {
                                                                     try {
@@ -147,8 +183,9 @@ export default function SettingsPage() {
                                                                         void usersQuery.refetch();
                                                                     } catch {}
                                                                 }}
+                                                                title="Excluir Usuário"
                                                             >
-                                                                Excluir
+                                                                <Trash className="h-4 w-4" />
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -158,6 +195,55 @@ export default function SettingsPage() {
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* Edit User Modal */}
+                            {editingUser && (
+                                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                                    <div className="bg-background border border-border rounded-lg p-6 w-full max-w-md shadow-lg">
+                                        <h3 className="text-lg font-semibold mb-4">Editar Usuário</h3>
+                                        <div className="space-y-3">
+                                            <Input 
+                                                label="Nome" 
+                                                value={editForm.name || ''} 
+                                                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} 
+                                            />
+                                            <Input 
+                                                label="Email" 
+                                                type="email" 
+                                                value={editForm.email || ''} 
+                                                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} 
+                                            />
+                                            <Input 
+                                                label="Nova Senha (opcional)" 
+                                                type="password" 
+                                                placeholder="Deixe em branco para manter"
+                                                value={editForm.password || ''} 
+                                                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} 
+                                            />
+                                            <div className="space-y-1">
+                                                <label className="text-sm font-medium">Função</label>
+                                                <div className="flex gap-2">
+                                                    {(['consultant', 'manager', 'admin'] as const).map((r) => (
+                                                        <Button 
+                                                            key={r} 
+                                                            size="sm"
+                                                            variant={editForm.role === r ? 'primary' : 'secondary'} 
+                                                            onClick={() => setEditForm({ ...editForm, role: r })}
+                                                        >
+                                                            {r === 'consultant' ? 'Consultor' : r === 'manager' ? 'Gerente' : 'Admin'}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex justify-end gap-2 mt-4">
+                                                <Button variant="secondary" onClick={() => setEditingUser(null)}>Cancelar</Button>
+                                                <Button onClick={handleUpdate} isLoading={updateUser.isPending}>Salvar</Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </TabsContent>
                     )}
                 </Tabs>

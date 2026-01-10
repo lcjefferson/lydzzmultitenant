@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useUsers, useCreateUser, useUpdateUser, useDeleteUser } from '@/hooks/api/use-users';
-import type { CreateUserDto } from '@/types/api';
+import type { CreateUserDto, UpdateUserDto, User } from '@/types/api';
 import { useAuth } from '@/contexts/auth-context';
 import { useState } from 'react';
 
@@ -17,8 +17,37 @@ export default function UsersPage() {
   const deleteUser = useDeleteUser();
 
   const [form, setForm] = useState<CreateUserDto>({ name: '', email: '', password: '', role: 'consultant' });
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState<UpdateUserDto>({});
 
   const isAdmin = user?.role === 'admin';
+
+  const handleEditClick = (userToEdit: User) => {
+    setEditingUser(userToEdit);
+    setEditForm({
+      name: userToEdit.name,
+      email: userToEdit.email,
+      role: userToEdit.role,
+      password: '', // Password is optional/empty by default
+    });
+  };
+
+  const handleUpdate = async () => {
+    if (!editingUser) return;
+    
+    // Remove empty password so it doesn't overwrite with empty string if the backend doesn't handle it
+    const dataToUpdate = { ...editForm };
+    if (!dataToUpdate.password) {
+      delete dataToUpdate.password;
+    }
+
+    try {
+      await updateUser.mutateAsync({ id: editingUser.id, data: dataToUpdate });
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Failed to update user', error);
+    }
+  };
 
   return (
     <div>
@@ -35,6 +64,7 @@ export default function UsersPage() {
                 </div>
                 {isAdmin && (
                   <div className="flex items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => handleEditClick(u)}>Editar</Button>
                     <Button size="sm" variant="secondary" onClick={() => updateUser.mutate({ id: u.id, data: { role: u.role === 'consultant' ? 'admin' : 'consultant' } })}>Alternar Função</Button>
                     <Button size="sm" variant="danger" onClick={() => deleteUser.mutate(u.id)} isLoading={deleteUser.isPending}>Excluir</Button>
                   </div>
@@ -63,6 +93,55 @@ export default function UsersPage() {
           )}
         </Card>
       </div>
+
+      {/* Edit Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background border border-border rounded-lg p-6 w-full max-w-md shadow-lg">
+            <h3 className="text-lg font-semibold mb-4">Editar Usuário</h3>
+            <div className="space-y-3">
+              <Input 
+                label="Nome" 
+                value={editForm.name || ''} 
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} 
+              />
+              <Input 
+                label="Email" 
+                type="email" 
+                value={editForm.email || ''} 
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} 
+              />
+              <Input 
+                label="Nova Senha (opcional)" 
+                type="password" 
+                placeholder="Deixe em branco para manter"
+                value={editForm.password || ''} 
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} 
+              />
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Função</label>
+                <div className="flex gap-2">
+                  {(['consultant', 'admin'] as const).map((r) => (
+                    <Button 
+                      key={r} 
+                      size="sm"
+                      variant={editForm.role === r ? 'primary' : 'secondary'} 
+                      onClick={() => setEditForm({ ...editForm, role: r })}
+                    >
+                      {r}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 mt-4">
+                <Button variant="secondary" onClick={() => setEditingUser(null)}>Cancelar</Button>
+                <Button onClick={handleUpdate} isLoading={updateUser.isPending}>Salvar</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

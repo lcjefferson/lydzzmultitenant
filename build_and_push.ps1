@@ -78,7 +78,7 @@ if ($LASTEXITCODE -ne 0) { Write-Error "Falha no push do backend"; exit 1 }
 
 # 5. Build & Push Frontend
 Write-Host "🏗️  Construindo imagem do Frontend..." -ForegroundColor Yellow
-docker build `
+docker build --no-cache `
     --build-arg NEXT_PUBLIC_API_URL=$apiUrl `
     --build-arg NEXT_PUBLIC_WS_URL=$wsUrl `
     -t "$DockerUser/lydzz-frontend:$Tag" `

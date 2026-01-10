@@ -93,7 +93,7 @@ export function Sidebar() {
     return (
         <div
             className={cn(
-                'flex flex-col h-screen bg-white border-r border-border transition-all duration-300',
+                'no-print flex flex-col h-screen bg-white border-r border-border transition-all duration-300',
                 collapsed ? 'w-16' : 'w-64'
             )}
         >

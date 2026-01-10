@@ -69,6 +69,8 @@ export function useDeleteLead() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['leads'] });
             queryClient.invalidateQueries({ queryKey: ['analytics', 'leads'] });
+            queryClient.invalidateQueries({ queryKey: ['analytics', 'reports', 'consultants'] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard', 'metrics'] });
             toast.success('Lead excluído com sucesso!');
         },
         onError: (error: unknown) => {

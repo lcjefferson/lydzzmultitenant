@@ -205,7 +205,14 @@ export class AnalyticsService {
   }
 
   async getContractsReport(organizationId?: string) {
-    const where: Prisma.LeadWhereInput = { status: 'Contrato fechado' };
+    const where: Prisma.LeadWhereInput = {
+      OR: [
+        { status: 'Contrato fechado' },
+        { status: 'converted' },
+        { status: 'fechado' },
+        { status: 'contrato' },
+      ],
+    };
     if (organizationId) {
       where.organizationId = organizationId;
     }
@@ -235,11 +242,20 @@ export class AnalyticsService {
         const leads = await this.prisma.lead.findMany({
           where: whereLead,
         });
-        const closed = leads.filter(
-          (l) => l.status === 'Contrato fechado',
+        const closed = leads.filter((l) =>
+          ['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
+            l.status,
+          ),
         ).length;
-        const active = leads.filter(
-          (l) => l.status !== 'Contrato fechado',
+        const meetings = leads.filter((l) =>
+          ['Reuniões Agendadas', 'reuni', 'reunião', 'agendada'].includes(
+            l.status,
+          ),
+        ).length;
+        const active = leads.filter((l) =>
+          !['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
+            l.status,
+          ),
         ).length;
         const total = leads.length;
         const conversionRate = total ? Math.round((closed / total) * 100) : 0;
@@ -248,12 +264,53 @@ export class AnalyticsService {
           name: u.name,
           email: u.email,
           closed,
+          meetings,
           active,
           total,
           conversionRate,
         };
       }),
     );
+
+    // Unassigned leads
+    const whereUnassigned: Prisma.LeadWhereInput = { assignedToId: null };
+    if (organizationId) {
+      whereUnassigned.organizationId = organizationId;
+    }
+    const unassignedLeads = await this.prisma.lead.findMany({
+      where: whereUnassigned,
+    });
+
+    if (unassignedLeads.length > 0) {
+      const closed = unassignedLeads.filter((l) =>
+        ['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
+          l.status,
+        ),
+      ).length;
+      const meetings = unassignedLeads.filter((l) =>
+        ['Reuniões Agendadas', 'reuni', 'reunião', 'agendada'].includes(
+          l.status,
+        ),
+      ).length;
+      const active = unassignedLeads.filter((l) =>
+        !['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
+          l.status,
+        ),
+      ).length;
+      const total = unassignedLeads.length;
+      const conversionRate = total ? Math.round((closed / total) * 100) : 0;
+      result.push({
+        userId: 'unassigned',
+        name: 'Não Atribuído',
+        email: '-',
+        closed,
+        meetings,
+        active,
+        total,
+        conversionRate,
+      });
+    }
+
     return result;
   }
 }

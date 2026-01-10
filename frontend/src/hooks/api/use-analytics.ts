@@ -5,7 +5,7 @@ export function useDashboardMetrics() {
     return useQuery({
         queryKey: ['dashboard', 'metrics'],
         queryFn: () => api.getDashboardMetrics(),
-        staleTime: 30000, // 30 seconds
+        staleTime: 0,
     });
 }
 
@@ -13,7 +13,7 @@ export function useConversationStats() {
     return useQuery({
         queryKey: ['analytics', 'conversations'],
         queryFn: () => api.getConversationStats(),
-        staleTime: 60000, // 1 minute
+        staleTime: 0,
     });
 }
 
@@ -21,7 +21,7 @@ export function useLeadStats() {
     return useQuery({
         queryKey: ['analytics', 'leads'],
         queryFn: () => api.getLeadStats(),
-        staleTime: 60000, // 1 minute
+        staleTime: 0,
     });
 }
 
@@ -29,7 +29,7 @@ export function useContractsReport() {
     return useQuery({
         queryKey: ['analytics', 'reports', 'contracts'],
         queryFn: () => api.getContractsReport(),
-        staleTime: 60000,
+        staleTime: 0,
     });
 }
 
@@ -37,6 +37,6 @@ export function useConsultantReport() {
     return useQuery({
         queryKey: ['analytics', 'reports', 'consultants'],
         queryFn: () => api.getConsultantReport(),
-        staleTime: 60000,
+        staleTime: 0,
     });
 }

@@ -236,21 +236,23 @@ export class LeadsService {
       },
     });
 
-    if (lead?.assignedToId && lead.assignedToId !== userId) {
-      await this.notificationsService.create({
-        type: 'lead_comment_added',
-        entityId: lead.id,
-        userId: lead.assignedToId,
-        organizationId: lead.organizationId,
-        data: {
-          leadId: lead.id,
-          leadName: lead.name,
-          commentContent: content,
-          commentId: newComment.id,
-          commentUser: userName,
-        },
-      });
+    if (!lead) {
+       throw new NotFoundException('Lead not found');
     }
+
+    await this.notificationsService.notifyOrganization(
+      lead.organizationId,
+      userId || '', // exclude commenter
+      'lead_comment_added',
+      lead.id,
+      {
+        leadId: lead.id,
+        leadName: lead.name,
+        commentContent: content,
+        commentId: newComment.id,
+        commentUser: userName,
+      }
+    );
 
     return updatedLead;
   }

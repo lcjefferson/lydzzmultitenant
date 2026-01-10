@@ -25,12 +25,16 @@ describe('LeadsService', () => {
             leadHistory: {
               create: jest.fn(),
             },
+            user: {
+              findUnique: jest.fn(),
+            },
           },
         },
         {
           provide: NotificationsService,
           useValue: {
             create: jest.fn(),
+            notifyOrganization: jest.fn(),
           },
         },
       ],
@@ -46,7 +50,7 @@ describe('LeadsService', () => {
   });
 
   describe('addComment', () => {
-    it('should add a comment and notify the assigned user if different from commenter', async () => {
+    it('should add a comment and notify the organization users except commenter', async () => {
       const leadId = 'lead-1';
       const userId = 'user-1'; // Commenter
       const assignedToId = 'user-2'; // Assignee
@@ -62,43 +66,23 @@ describe('LeadsService', () => {
 
       (prismaService.lead.findUnique as jest.Mock).mockResolvedValue(lead);
       (prismaService.lead.update as jest.Mock).mockResolvedValue(lead); // Mock update return
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue({ id: userId, name: 'Commenter' });
 
       await service.addComment(leadId, content, userId);
 
-      expect(notificationsService.create).toHaveBeenCalledWith({
-        type: 'lead_comment_added',
-        entityId: leadId,
-        userId: assignedToId,
+      expect(notificationsService.notifyOrganization).toHaveBeenCalledWith(
         organizationId,
-        data: {
+        userId,
+        'lead_comment_added',
+        leadId,
+        {
           leadId,
           leadName: lead.name,
           commentContent: content,
           commentId: expect.any(String),
+          commentUser: 'Commenter', 
         },
-      });
-    });
-
-    it('should NOT notify if the commenter is the assigned user', async () => {
-      const leadId = 'lead-1';
-      const userId = 'user-1'; // Commenter
-      const assignedToId = 'user-1'; // Assignee (same)
-      const organizationId = 'org-1';
-      const content = 'Test comment';
-
-      const lead = {
-        id: leadId,
-        assignedToId,
-        organizationId,
-        name: 'Lead Name',
-      };
-
-      (prismaService.lead.findUnique as jest.Mock).mockResolvedValue(lead);
-      (prismaService.lead.update as jest.Mock).mockResolvedValue(lead); // Mock update return
-
-      await service.addComment(leadId, content, userId);
-
-      expect(notificationsService.create).not.toHaveBeenCalled();
+      );
     });
   });
 });

@@ -446,7 +446,7 @@ class ApiService {
 
   async getConsultantReport() {
     const response = await this.api.get('/analytics/reports/consultants');
-    return response.data as Array<{ userId: string; name: string; email: string; closed: number; active: number; total: number; conversionRate: number }>;
+    return response.data as Array<{ userId: string; name: string; email: string; closed: number; meetings: number; active: number; total: number; conversionRate: number }>;
   }
 
   // Internal Chat

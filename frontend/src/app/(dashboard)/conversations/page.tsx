@@ -23,9 +23,11 @@ import { toast } from 'sonner';
 
 export default function ConversationsPage() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
     const [messageInput, setMessageInput] = useState('');
     const [filter, setFilter] = useState<'all' | 'active' | 'waiting'>('all');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messageInputRef = useRef<HTMLTextAreaElement>(null);
     const queryClient = useQueryClient();
     const [showLeadModal, setShowLeadModal] = useState(false);
     const { user } = useAuth();
@@ -288,16 +290,33 @@ export default function ConversationsPage() {
 
     const handleSendMessage = async () => {
         if (messageInput.trim() && effectiveSelectedId) {
+            const currentMessage = messageInput;
+            
+            // Optimistic clear and focus
+            setMessageInput('');
+            setTimeout(() => {
+                if (messageInputRef.current) {
+                    messageInputRef.current.focus();
+                }
+            }, 0);
+
             try {
                 await createMessage.mutateAsync({
                     conversationId: effectiveSelectedId,
-                    content: messageInput,
+                    content: currentMessage,
                     senderType: 'user',
                     type: 'text',
                 });
-                setMessageInput('');
             } catch (error) {
                 console.error('Error sending message:', error);
+                setMessageInput(currentMessage);
+            } finally {
+                // Ensure focus returns
+                setTimeout(() => {
+                    if (messageInputRef.current) {
+                        messageInputRef.current.focus();
+                    }
+                }, 50);
             }
         }
     };
@@ -333,8 +352,24 @@ export default function ConversationsPage() {
     };
 
     const filteredConversations = conversations?.filter((conv) => {
-        if (filter === 'all') return true;
-        return conv.status === filter;
+        const matchesFilter = filter === 'all' ? true : conv.status === filter;
+        
+        if (!searchTerm) return matchesFilter;
+
+        const searchLower = searchTerm.toLowerCase();
+        const contactName = (conv.contactName || '').toLowerCase();
+        const contactIdentifier = (conv.contactIdentifier || '').toLowerCase();
+        const leadName = (conv.lead?.name || '').toLowerCase();
+        const leadEmail = (conv.lead?.email || '').toLowerCase();
+        const leadPhone = (conv.lead?.phone || '').toLowerCase();
+
+        const matchesSearch = contactName.includes(searchLower) ||
+            contactIdentifier.includes(searchLower) ||
+            leadName.includes(searchLower) ||
+            leadEmail.includes(searchLower) ||
+            leadPhone.includes(searchLower);
+
+        return matchesFilter && matchesSearch;
     }) || [];
 
     const currentConversation = conversations?.find((c) => c.id === effectiveSelectedId);
@@ -356,6 +391,8 @@ export default function ConversationsPage() {
                                 type="text"
                                 placeholder="Buscar conversas..."
                                 className="input pl-10 w-full"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
@@ -494,6 +531,7 @@ export default function ConversationsPage() {
                             <div className="flex items-end gap-2">
                                 <div className="flex-1">
                                     <textarea
+                                        ref={messageInputRef}
                                         value={messageInput}
                                         onChange={(e) => setMessageInput(e.target.value)}
                                         onKeyDown={(e) => {
@@ -506,6 +544,7 @@ export default function ConversationsPage() {
                                         className="input resize-none"
                                         rows={1}
                                         disabled={createMessage.isPending}
+                                        autoFocus
                                     />
                                 </div>
                                 <button 
@@ -793,15 +832,45 @@ function Comments({ leadId }: { leadId: string }) {
     const [content, setContent] = useState('');
     const commentsQuery = useLeadComments(leadId);
     const addComment = useAddLeadComment();
+    const inputRef = useRef<HTMLInputElement>(null);
     const comments = commentsQuery.data || [];
+    
     const handleAdd = async () => {
         const text = content.trim();
         if (!text) return;
+
+        // Optimistic UI update: clear and focus immediately
+        setContent('');
+        // Ensure focus is kept immediately
+        setTimeout(() => {
+            if (inputRef.current) {
+                inputRef.current.focus();
+            }
+        }, 0);
+
         try {
             await addComment.mutateAsync({ id: leadId, content: text });
-            setContent('');
-        } catch {}
+        } catch (error) {
+            console.error('Error adding comment:', error);
+            setContent(text);
+        } finally {
+            // Ensure focus is restored after any potential re-renders or data refetching
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                }
+            }, 50);
+        }
     };
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            handleAdd();
+        }
+    };
+
     return (
         <div className="space-y-3">
             <p className="text-sm text-text-tertiary">Comentários</p>
@@ -825,7 +894,14 @@ function Comments({ leadId }: { leadId: string }) {
                 )}
             </div>
             <div className="flex gap-2 items-end">
-                <Input label="Adicionar comentário" value={content} onChange={(e) => setContent(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
+                <Input 
+                    ref={inputRef}
+                    label="Adicionar comentário" 
+                    value={content} 
+                    onChange={(e) => setContent(e.target.value)} 
+                    onKeyDown={handleKeyDown}
+                    className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" 
+                />
                 <Button size="sm" className="h-12 px-4 text-sm" onClick={handleAdd} isLoading={addComment.isPending}>Comentar</Button>
             </div>
         </div>

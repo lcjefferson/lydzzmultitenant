@@ -5,6 +5,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Users, Bot } from 'lucide-react';
 import { useDashboardMetrics, useConversationStats, useLeadStats, useContractsReport, useConsultantReport } from '@/hooks/api/use-analytics';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Componentes de ícones de arquivo coloridos
+const FileIconCsv = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#000080"/>
+    <path d="M24 2V10H32" fill="#000050" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="sans-serif">CSV</text>
+  </svg>
+);
+
+const FileIconPdf = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#EF4444"/>
+    <path d="M24 2V10H32" fill="#991B1B" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="sans-serif">PDF</text>
+  </svg>
+);
+
+const FileIconExcel = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#16A34A"/>
+    <path d="M24 2V10H32" fill="#14532D" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="sans-serif">EXCEL</text>
+  </svg>
+);
 
 export default function AnalyticsPage() {
     const { data: metrics } = useDashboardMetrics();
@@ -25,26 +68,50 @@ export default function AnalyticsPage() {
         URL.revokeObjectURL(url);
     };
 
-    const printPage = () => {
-        window.print();
+    const downloadExcel = (rows: Array<Record<string, unknown>>, filename: string) => {
+        const worksheet = XLSX.utils.json_to_sheet(rows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório");
+        XLSX.writeFile(workbook, filename);
+    };
+
+    const downloadPDF = (title: string, headers: string[], rows: (string | number)[][], filename: string) => {
+        const doc = new jsPDF();
+        doc.text(title, 14, 15);
+        autoTable(doc, {
+            head: [headers],
+            body: rows,
+            startY: 20,
+        });
+        doc.save(filename);
     };
 
     const kpis = [
-        { label: 'Conversas Totais', value: (metrics?.totalConversations ?? 0).toString(), icon: MessageSquare },
-        { label: 'Leads Ativos', value: (metrics?.activeLeads ?? 0).toString(), icon: Users },
-        { label: 'Mensagens Totais', value: (metrics?.totalMessages ?? 0).toString(), icon: MessageSquare },
-        { label: 'Agentes', value: (metrics?.totalAgents ?? 0).toString(), icon: Bot },
+        { label: 'Conversas Totais', value: (metrics?.totalConversations?.value ?? 0).toString(), icon: MessageSquare },
+        { label: 'Leads Ativos', value: (metrics?.activeLeads?.value ?? 0).toString(), icon: Users },
+        { label: 'Mensagens Totais', value: (metrics?.totalMessages?.value ?? 0).toString(), icon: MessageSquare },
+        { label: 'Agentes', value: (metrics?.totalAgents?.value ?? 0).toString(), icon: Bot },
     ];
 
     return (
         <div>
-            <Header
-                title="Analytics"
-                description="Análise detalhada de performance"
-                actions={
-                    <Button variant="secondary">Exportar Relatório</Button>
-                }
-            />
+            <div className="no-print">
+                <Header
+                    title="Analytics"
+                    description="Análise detalhada de performance"
+                    actions={
+                        <Button variant="secondary">Exportar Relatório</Button>
+                    }
+                />
+            </div>
+
+            <div className="print-only px-6 pt-6">
+                <div className="flex items-baseline justify-between gap-6">
+                    <h1 className="text-xl font-bold text-neutral-900">Analytics</h1>
+                    <p className="text-xs text-neutral-700">{new Date().toLocaleString('pt-BR')}</p>
+                </div>
+                <p className="text-sm text-neutral-700 mt-1">Análise detalhada de performance</p>
+            </div>
 
             <div className="p-6 space-y-6">
                 {/* KPIs */}
@@ -113,7 +180,13 @@ export default function AnalyticsPage() {
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex gap-2">
-                                    <Button variant="secondary" onClick={() => downloadCSV(
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1 hover:bg-neutral-100"
+                                        title="Exportar CSV"
+                                        aria-label="Exportar CSV"
+                                        onClick={() => downloadCSV(
                                         (contracts || []).map(c => ({
                                             id: c.id,
                                             nome: c.name,
@@ -122,8 +195,48 @@ export default function AnalyticsPage() {
                                             atualizadoEm: new Date(c.updatedAt as unknown as string).toISOString(),
                                         })),
                                         'contratos-fechados.csv'
-                                    )}>Exportar CSV</Button>
-                                    <Button variant="secondary" onClick={printPage}>Exportar PDF</Button>
+                                    )}
+                                    >
+                                        <FileIconCsv className="h-8 w-8" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1 hover:bg-neutral-100"
+                                        title="Exportar Excel"
+                                        aria-label="Exportar Excel"
+                                        onClick={() => downloadExcel(
+                                        (contracts || []).map(c => ({
+                                            id: c.id,
+                                            nome: c.name,
+                                            consultor: c.assignedTo?.name || '',
+                                            email: c.assignedTo?.email || '',
+                                            atualizadoEm: new Date(c.updatedAt as unknown as string).toISOString(),
+                                        })),
+                                        'contratos-fechados.xlsx'
+                                    )}
+                                    >
+                                        <FileIconExcel className="h-8 w-8" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1 hover:bg-neutral-100"
+                                        title="Exportar PDF"
+                                        aria-label="Exportar PDF"
+                                        onClick={() => downloadPDF(
+                                            'Contratos Fechados',
+                                            ['Lead', 'Consultor', 'Atualizado'],
+                                            (contracts || []).map(c => [
+                                                c.name,
+                                                c.assignedTo?.name || '-',
+                                                new Date(c.updatedAt as unknown as string).toLocaleString()
+                                            ]),
+                                            'contratos-fechados.pdf'
+                                        )}
+                                    >
+                                        <FileIconPdf className="h-8 w-8" />
+                                    </Button>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
@@ -160,7 +273,13 @@ export default function AnalyticsPage() {
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex gap-2">
-                                    <Button variant="secondary" onClick={() => downloadCSV(
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1 hover:bg-neutral-100"
+                                        title="Exportar CSV"
+                                        aria-label="Exportar CSV"
+                                        onClick={() => downloadCSV(
                                         (consultants || []).map(c => ({
                                             consultor: c.name,
                                             email: c.email,
@@ -168,10 +287,56 @@ export default function AnalyticsPage() {
                                             ativos: c.active,
                                             total: c.total,
                                             conversao: `${c.conversionRate}%`,
+                                            reunioes: c.meetings,
                                         })),
                                         'relatorio-consultores.csv'
-                                    )}>Exportar CSV</Button>
-                                    <Button variant="secondary" onClick={printPage}>Exportar PDF</Button>
+                                    )}
+                                    >
+                                        <FileIconCsv className="h-8 w-8" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1 hover:bg-neutral-100"
+                                        title="Exportar Excel"
+                                        aria-label="Exportar Excel"
+                                        onClick={() => downloadExcel(
+                                        (consultants || []).map(c => ({
+                                            consultor: c.name,
+                                            email: c.email,
+                                            fechados: c.closed,
+                                            ativos: c.active,
+                                            total: c.total,
+                                            conversao: `${c.conversionRate}%`,
+                                            reunioes: c.meetings,
+                                        })),
+                                        'relatorio-consultores.xlsx'
+                                    )}
+                                    >
+                                        <FileIconExcel className="h-8 w-8" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1 hover:bg-neutral-100"
+                                        title="Exportar PDF"
+                                        aria-label="Exportar PDF"
+                                        onClick={() => downloadPDF(
+                                            'Relatório por Consultor',
+                                            ['Consultor', 'Fechados', 'Ativos', 'Total', 'Conversão', 'Reuniões Agendadas'],
+                                            (consultants || []).map(c => [
+                                                c.name,
+                                                c.closed,
+                                                c.active,
+                                                c.total,
+                                                `${c.conversionRate}%`,
+                                                c.meetings
+                                            ]),
+                                            'relatorio-consultores.pdf'
+                                        )}
+                                    >
+                                        <FileIconPdf className="h-8 w-8" />
+                                    </Button>
                                 </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full">
@@ -182,6 +347,7 @@ export default function AnalyticsPage() {
                                                 <th className="text-left py-2 px-4 text-sm text-neutral-900">Ativos</th>
                                                 <th className="text-left py-2 px-4 text-sm text-neutral-900">Total</th>
                                                 <th className="text-left py-2 px-4 text-sm text-neutral-900">Conversão</th>
+                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Reuniões Agendadas</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -192,6 +358,7 @@ export default function AnalyticsPage() {
                                                     <td className="py-2 px-4 text-sm text-neutral-900">{c.active}</td>
                                                     <td className="py-2 px-4 text-sm text-neutral-900">{c.total}</td>
                                                     <td className="py-2 px-4 text-sm text-neutral-900">{c.conversionRate}%</td>
+                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.meetings}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
