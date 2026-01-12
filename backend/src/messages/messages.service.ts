@@ -346,11 +346,22 @@ export class MessagesService {
                 if (!relativePath.startsWith('http')) {
                     const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3001';
                     if (appUrl.includes('localhost')) {
-                        this.logger.warn('APP_URL is set to localhost. WhatsApp Media upload will likely fail.');
+                        this.logger.warn('APP_URL is set to localhost. WhatsApp Media upload will likely fail. Please set APP_URL in .env to a public URL.');
                     }
-                    // Ensure relativePath doesn't start with / if we add one, or handle it
-                    // relativePath from upload is likely "/uploads/..."
-                    mediaUrl = `${appUrl}${relativePath.startsWith('/') ? '' : '/'}${relativePath}`;
+                    
+                    // Normalize and encode path
+                    // Replace backslashes with forward slashes for Windows compatibility
+                    let safePath = relativePath.replace(/\\/g, '/');
+                    safePath = safePath.startsWith('/') ? safePath : '/' + safePath;
+                    
+                    // Basic encoding for spaces if not already encoded
+                    if (safePath.includes(' ') && !safePath.includes('%20')) {
+                         safePath = encodeURI(safePath);
+                    }
+
+                    // Remove trailing slash from appUrl to avoid double slashes
+                    const cleanAppUrl = appUrl.endsWith('/') ? appUrl.slice(0, -1) : appUrl;
+                    mediaUrl = `${cleanAppUrl}${safePath}`;
                 } else {
                     mediaUrl = relativePath;
                 }

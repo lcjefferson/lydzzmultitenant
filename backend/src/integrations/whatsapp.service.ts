@@ -102,11 +102,24 @@ export class WhatsAppService {
         cleanTo = '55' + cleanTo;
       }
 
+      // Validate media URL
+      let validMediaUrl = mediaUrl;
+      try {
+          // Check if it's a valid URL and encode if necessary
+          const urlObj = new URL(mediaUrl);
+          validMediaUrl = urlObj.toString();
+      } catch (e) {
+          // If it's not a valid URL (e.g. local path), try to fix it or throw error
+          this.logger.error(`Invalid Media URL provided: ${mediaUrl}`);
+          return { success: false, error: `Invalid Media URL: ${mediaUrl}` };
+      }
+
       // Check for unsupported audio formats (WebM) and fallback to document
       // WhatsApp Official API does not support WebM for 'audio' type (voice notes)
       let finalMediaType = mediaType;
-      if (mediaType === 'audio' && mediaUrl.endsWith('.webm')) {
-          this.logger.warn(`Converting WebM audio to document for WhatsApp compatibility: ${mediaUrl}`);
+      const urlObj = new URL(validMediaUrl);
+      if (mediaType === 'audio' && (validMediaUrl.endsWith('.webm') || urlObj.pathname.endsWith('.webm'))) {
+          this.logger.warn(`Converting WebM audio to document for WhatsApp compatibility: ${validMediaUrl}`);
           finalMediaType = 'document';
       }
 
@@ -118,7 +131,7 @@ export class WhatsAppService {
 
       // Map internal types to WhatsApp types
       const mediaObject: any = {
-          link: mediaUrl
+          link: validMediaUrl
       };
 
       if (caption && finalMediaType !== 'audio') {
@@ -127,7 +140,7 @@ export class WhatsAppService {
 
       // If it's a document, set filename
       if (finalMediaType === 'document') {
-          mediaObject.filename = mediaUrl.split('/').pop() || 'file';
+          mediaObject.filename = urlObj.pathname.split('/').pop() || 'file';
       }
 
       payload[finalMediaType] = mediaObject;
