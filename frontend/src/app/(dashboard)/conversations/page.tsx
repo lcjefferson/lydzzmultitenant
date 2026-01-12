@@ -20,6 +20,36 @@ import { useLead, useLeadComments, useAddLeadComment, useUpdateLead, useDelegate
 import { useAuth } from '@/contexts/auth-context';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Componentes de ícones de arquivo coloridos
+const FileIconPdf = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#EF4444"/>
+    <path d="M24 2V10H32" fill="#991B1B" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="sans-serif">PDF</text>
+  </svg>
+);
+
+const FileIconExcel = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#16A34A"/>
+    <path d="M24 2V10H32" fill="#14532D" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="sans-serif">EXCEL</text>
+  </svg>
+);
 
 export default function ConversationsPage() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -371,6 +401,87 @@ export default function ConversationsPage() {
 
         return matchesFilter && matchesSearch;
     }) || [];
+
+    const [isExporting, setIsExporting] = useState(false);
+
+    const getFormattedDateTime = () => {
+        const date = new Date();
+        const formattedDate = date.toISOString().split('T')[0];
+        const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-');
+        return `${formattedDate}_${formattedTime}`;
+    };
+
+    const handleExportExcel = async () => {
+        if (!filteredConversations.length) {
+            toast.error('Não há conversas para exportar.');
+            return;
+        }
+
+        try {
+            setIsExporting(true);
+            const rows = filteredConversations.map((conv) => ({
+                Contato: (conv.lead?.name || conv.contactName || conv.contactIdentifier || 'Contato').trim(),
+                Identificador: conv.contactIdentifier || conv.lead?.email || conv.lead?.phone || '',
+                Status: conv.status,
+                'Última Mensagem': conv.messages?.[0]?.content || conv.messages?.[conv.messages.length - 1]?.content || 'Sem mensagens',
+                'Data Última Mensagem': new Date(conv.lastMessageAt).toLocaleString('pt-BR'),
+                'Agente': conv.agentId ? 'Sim' : 'Não',
+                'Atribuído a': getAssignedName(conv) || '-'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Conversas");
+            const filename = `leads_${getFormattedDateTime()}.xlsx`;
+            XLSX.writeFile(workbook, filename);
+            toast.success('Exportação Excel concluída!');
+        } catch (error) {
+            console.error('Erro ao exportar Excel:', error);
+            toast.error('Erro ao exportar Excel.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleExportPDF = async () => {
+        if (!filteredConversations.length) {
+            toast.error('Não há conversas para exportar.');
+            return;
+        }
+
+        try {
+            setIsExporting(true);
+            const doc = new jsPDF();
+            const filename = `leads_${getFormattedDateTime()}.pdf`;
+
+            doc.text(`Relatório de Conversas - ${new Date().toLocaleString('pt-BR')}`, 14, 15);
+            
+            const tableHeaders = ['Contato', 'Identificador', 'Status', 'Última Msg', 'Data'];
+            const tableRows = filteredConversations.map((conv) => [
+                (conv.lead?.name || conv.contactName || conv.contactIdentifier || 'Contato').trim(),
+                conv.contactIdentifier || conv.lead?.email || conv.lead?.phone || '',
+                conv.status,
+                (conv.messages?.[0]?.content || conv.messages?.[conv.messages.length - 1]?.content || 'Sem mensagens').substring(0, 30) + '...',
+                new Date(conv.lastMessageAt).toLocaleString('pt-BR')
+            ]);
+
+            autoTable(doc, {
+                head: [tableHeaders],
+                body: tableRows,
+                startY: 20,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [41, 128, 185] },
+            });
+
+            doc.save(filename);
+            toast.success('Exportação PDF concluída!');
+        } catch (error) {
+            console.error('Erro ao exportar PDF:', error);
+            toast.error('Erro ao exportar PDF.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     const currentConversation = conversations?.find((c) => c.id === effectiveSelectedId);
 

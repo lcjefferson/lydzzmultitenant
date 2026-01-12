@@ -24,7 +24,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 p-4">
+        <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 p-4">
             <Card className="w-full max-w-md">
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">
@@ -69,6 +69,10 @@ export default function LoginPage() {
                     </form>
                 </CardContent>
             </Card>
+
+            <div className="absolute bottom-6 text-center text-xs text-gray-500 font-medium select-none">
+                v{process.env.NEXT_PUBLIC_APP_VERSION} • {process.env.NEXT_PUBLIC_BUILD_DATE}
+            </div>
         </div>
     );
 }

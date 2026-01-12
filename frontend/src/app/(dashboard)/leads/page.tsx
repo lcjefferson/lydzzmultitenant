@@ -23,6 +23,36 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+// Componentes de ícones de arquivo coloridos
+const FileIconPdf = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#EF4444"/>
+    <path d="M24 2V10H32" fill="#991B1B" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="bold" fontFamily="sans-serif">PDF</text>
+  </svg>
+);
+
+const FileIconExcel = ({ className }: { className?: string }) => (
+  <svg 
+    xmlns="http://www.w3.org/2000/svg" 
+    viewBox="0 0 40 40" 
+    className={className} 
+    fill="none"
+  >
+    <path d="M8 4C8 2.89543 8.89543 2 10 2H24L32 10V36C32 37.1046 31.1046 38 30 38H10C8.89543 38 8 37.1046 8 36V4Z" fill="#16A34A"/>
+    <path d="M24 2V10H32" fill="#14532D" fillOpacity="0.4"/>
+    <text x="20" y="25" textAnchor="middle" fill="#FFFFFF" fontSize="8" fontWeight="bold" fontFamily="sans-serif">EXCEL</text>
+  </svg>
+);
 
 export default function LeadsPage() {
     const router = useRouter();
@@ -155,6 +185,92 @@ export default function LeadsPage() {
 
     const filteredLeads = leads || [];
 
+    const [isExporting, setIsExporting] = useState(false);
+
+    const getFormattedDateTime = () => {
+        const date = new Date();
+        const formattedDate = date.toISOString().split('T')[0];
+        const formattedTime = date.toTimeString().split(' ')[0].replace(/:/g, '-');
+        return `${formattedDate}_${formattedTime}`;
+    };
+
+    const handleExportExcel = async () => {
+        if (!filteredLeads.length) {
+            toast.error('Não há leads para exportar.');
+            return;
+        }
+
+        try {
+            setIsExporting(true);
+            const rows = filteredLeads.map((lead) => ({
+                Nome: lead.name,
+                Email: lead.email || '',
+                Telefone: lead.phone || '',
+                Empresa: lead.company || '',
+                Cargo: lead.position || '',
+                Temperatura: lead.temperature || '',
+                Status: lead.status || '',
+                Delegado: getAssignedName(lead) || '',
+                Origem: lead.source || '',
+                Interesse: lead.interest || '',
+                'Data de Criação': new Date(lead.createdAt).toLocaleString('pt-BR'),
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Leads");
+            const filename = `leads_${getFormattedDateTime()}.xlsx`;
+            XLSX.writeFile(workbook, filename);
+            toast.success('Exportação Excel concluída!');
+        } catch (error) {
+            console.error('Erro ao exportar Excel:', error);
+            toast.error('Erro ao exportar Excel.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const handleExportPDF = async () => {
+        if (!filteredLeads.length) {
+            toast.error('Não há leads para exportar.');
+            return;
+        }
+
+        try {
+            setIsExporting(true);
+            const doc = new jsPDF();
+            const filename = `leads_${getFormattedDateTime()}.pdf`;
+
+            doc.text(`Relatório de Leads - ${new Date().toLocaleString('pt-BR')}`, 14, 15);
+            
+            const tableHeaders = ['Nome', 'Email', 'Empresa', 'Temp.', 'Status', 'Delegado'];
+            const tableRows = filteredLeads.map((lead) => [
+                lead.name,
+                lead.email || '-',
+                lead.company || '-',
+                lead.temperature || '-',
+                lead.status || '-',
+                getAssignedName(lead) || '-'
+            ]);
+
+            autoTable(doc, {
+                head: [tableHeaders],
+                body: tableRows,
+                startY: 20,
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [41, 128, 185] },
+            });
+
+            doc.save(filename);
+            toast.success('Exportação PDF concluída!');
+        } catch (error) {
+            console.error('Erro ao exportar PDF:', error);
+            toast.error('Erro ao exportar PDF.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     
 
     return (
@@ -186,47 +302,76 @@ export default function LeadsPage() {
                     ))}
                 </div>
 
-                {/* Filters and Search */}
-                <div className="flex items-center gap-4">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome, email, empresa..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="input pl-10 w-full"
-                        />
+                {/* Actions Group */}
+                <div className="space-y-3">
+                    {/* Export Buttons */}
+                    <div className="flex flex-wrap items-center justify-end gap-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 hover:bg-surface"
+                            title="Exportar Excel"
+                            aria-label="Exportar Excel"
+                            onClick={handleExportExcel}
+                            disabled={isExporting}
+                        >
+                            <FileIconExcel className="h-8 w-8" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 hover:bg-surface"
+                            title="Exportar PDF"
+                            aria-label="Exportar PDF"
+                            onClick={handleExportPDF}
+                            disabled={isExporting}
+                        >
+                            <FileIconPdf className="h-8 w-8" />
+                        </Button>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Button
-                            size="sm"
-                            variant={!tempFilter ? 'primary' : 'secondary'}
-                            onClick={() => setTempFilter(undefined)}
-                        >
-                            Todos
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant={tempFilter === 'hot' ? 'primary' : 'secondary'}
-                            onClick={() => setTempFilter('hot')}
-                        >
-                            Quentes
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant={tempFilter === 'warm' ? 'primary' : 'secondary'}
-                            onClick={() => setTempFilter('warm')}
-                        >
-                            Mornos
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant={tempFilter === 'cold' ? 'primary' : 'secondary'}
-                            onClick={() => setTempFilter('cold')}
-                        >
-                            Frios
-                        </Button>
+
+                    {/* Filters and Search */}
+                    <div className="flex items-center gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por nome, email, empresa..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="input pl-10 w-full"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                variant={!tempFilter ? 'primary' : 'secondary'}
+                                onClick={() => setTempFilter(undefined)}
+                            >
+                                Todos
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={tempFilter === 'hot' ? 'primary' : 'secondary'}
+                                onClick={() => setTempFilter('hot')}
+                            >
+                                Quentes
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={tempFilter === 'warm' ? 'primary' : 'secondary'}
+                                onClick={() => setTempFilter('warm')}
+                            >
+                                Mornos
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={tempFilter === 'cold' ? 'primary' : 'secondary'}
+                                onClick={() => setTempFilter('cold')}
+                            >
+                                Frios
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
