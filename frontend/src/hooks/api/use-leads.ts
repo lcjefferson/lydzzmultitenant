@@ -41,6 +41,24 @@ export function useCreateLead() {
     });
 }
 
+export function useImportLeads() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (data: CreateLeadDto[]) => api.importLeads(data),
+        onSuccess: (data: any) => {
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+            queryClient.invalidateQueries({ queryKey: ['analytics', 'leads'] });
+            toast.success(`${data.count} leads importados com sucesso!`);
+        },
+        onError: (error: unknown) => {
+            type ApiErrorResp = { response?: { data?: { message?: string } } };
+            const e = error as ApiErrorResp;
+            toast.error(e.response?.data?.message || 'Erro ao importar leads');
+        },
+    });
+}
+
 export function useUpdateLead() {
     const queryClient = useQueryClient();
 

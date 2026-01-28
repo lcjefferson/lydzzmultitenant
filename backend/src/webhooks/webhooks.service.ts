@@ -16,9 +16,11 @@ export class WebhooksService {
   ) {}
 
   async create(dto: CreateWebhookDto, organizationId: string): Promise<Webhook> {
+    const { events, ...rest } = dto;
     return this.prisma.webhook.create({
       data: {
-        ...dto,
+        ...rest,
+        events: events.join(','),
         organizationId,
       },
     });
@@ -45,9 +47,16 @@ export class WebhooksService {
     if (!webhook) {
       throw new NotFoundException('Webhook not found');
     }
+    
+    const { events, ...rest } = dto;
+    const data: any = { ...rest };
+    if (events) {
+      data.events = events.join(',');
+    }
+
     return this.prisma.webhook.update({
       where: { id },
-      data: dto,
+      data,
     });
   }
 
@@ -63,7 +72,7 @@ export class WebhooksService {
     const webhooks = await this.prisma.webhook.findMany({
       where: {
         isActive: true,
-        events: { has: event },
+        events: { contains: event },
         organizationId,
       },
     });
@@ -72,8 +81,6 @@ export class WebhooksService {
       webhooks.map((webhook) => this.sendWebhook(webhook, event, payload)),
     );
   }
-
-
 
   async getPublicBaseUrl(): Promise<string | null> {
     const envUrl = process.env.APP_URL || process.env.PUBLIC_URL || process.env.NGROK_URL;
@@ -122,7 +129,7 @@ export class WebhooksService {
     const logData: Prisma.WebhookLogUncheckedCreateInput = {
       webhookId: webhook.id,
       event,
-      payload,
+      payload: payload as any,
       success: false,
     };
 

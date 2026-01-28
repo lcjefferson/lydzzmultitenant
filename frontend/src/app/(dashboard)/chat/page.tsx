@@ -87,60 +87,60 @@ export default function InternalChatPage() {
       <Header title="Chat Interno" description="Converse internamente com sua equipe" />
       <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="md:col-span-1">
-          <Card className="p-4">
+          <Card className="p-4 bg-[#111b21] border-white/10">
             <div className="flex items-center gap-2 mb-3">
-              <Search className="h-4 w-4 text-text-tertiary" />
+              <Search className="h-4 w-4 text-gray-400" />
               <Input
                 label="Buscar usuário"
                 placeholder="Digite nome ou email"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
+                className="bg-[#202c33] border-none text-white focus:ring-0 placeholder-gray-400"
               />
             </div>
             <div className="space-y-2 max-h-[60vh] overflow-y-auto">
               {suggestions.length === 0 ? (
-                <div className="text-sm text-text-secondary">Sem usuários</div>
+                <div className="text-sm text-gray-400">Sem usuários</div>
               ) : (
                 suggestions.map((u) => (
                   <button
                     key={u.id}
-                    className={`w-full text-left px-3 py-2 rounded-md border hover:bg-neutral-50 ${!canDM ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full text-left px-3 py-2 rounded-md border border-transparent hover:bg-white group transition-colors ${!canDM ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onClick={() => handleOpenDM(u.id)}
                     disabled={!canDM}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-neutral-900">{u.name}</span>
-                      <span className="text-xs text-text-tertiary">{u.email}</span>
+                      <span className="text-sm font-medium text-gray-50 group-hover:text-neutral-900">{u.name}</span>
+                      <span className="text-xs text-gray-400 group-hover:text-neutral-500">{u.email}</span>
                     </div>
                   </button>
                 ))
               )}
             </div>
             <div className="mt-4">
-              <p className="text-xs text-text-tertiary">Somente <span className="font-medium">admin</span> e <span className="font-medium">gerente</span> podem iniciar conversas diretas.</p>
+              <p className="text-xs text-gray-500">Somente <span className="font-medium">admin</span> e <span className="font-medium">gerente</span> podem iniciar conversas diretas.</p>
             </div>
           </Card>
-          <Card className="p-4 mt-4">
-            <p className="text-sm font-medium text-neutral-900 mb-2">Recentes</p>
+          <Card className="p-4 mt-4 bg-[#111b21] border-white/10">
+            <p className="text-sm font-medium text-gray-50 mb-2">Recentes</p>
             <div className="space-y-2 max-h-[30vh] overflow-y-auto">
               {(dms || []).length === 0 ? (
-                <div className="text-sm text-text-secondary">Sem conversas</div>
+                <div className="text-sm text-gray-400">Sem conversas</div>
               ) : (
                 (dms || []).map((c) => (
                   <button
                     key={c.id}
-                    className={`w-full text-left px-3 py-2 rounded-md border ${selectedConvId === c.id ? 'bg-neutral-100 border-neutral-300' : 'border-transparent hover:bg-neutral-50'}`}
+                    className={`w-full text-left px-3 py-2 rounded-md border transition-colors group ${selectedConvId === c.id ? 'bg-white border-transparent' : 'border-transparent hover:bg-white'}`}
                     onClick={() => setSelectedConvId(c.id)}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-neutral-900">{c.name}</span>
+                      <span className={`text-sm font-medium ${selectedConvId === c.id ? 'text-neutral-900' : 'text-gray-50 group-hover:text-neutral-900'}`}>{c.name}</span>
                       {c.lastMessageAt && (
-                        <span className="text-xs text-text-tertiary">{new Date(c.lastMessageAt).toLocaleString()}</span>
+                        <span className={`text-xs ${selectedConvId === c.id ? 'text-neutral-500' : 'text-gray-400 group-hover:text-neutral-500'}`}>{new Date(c.lastMessageAt).toLocaleString()}</span>
                       )}
                     </div>
                     {c.lastMessage && (
-                      <p className="text-xs text-neutral-700 truncate mt-1">{c.lastMessage}</p>
+                      <p className={`text-xs truncate mt-1 ${selectedConvId === c.id ? 'text-neutral-700' : 'text-gray-300 group-hover:text-neutral-700'}`}>{c.lastMessage}</p>
                     )}
                   </button>
                 ))

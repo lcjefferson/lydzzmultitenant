@@ -55,7 +55,7 @@ const navigation = [
     },
 ];
 
-export function Sidebar() {
+export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
     const { user, logout } = useAuth();
@@ -93,28 +93,29 @@ export function Sidebar() {
     return (
         <div
             className={cn(
-                'no-print flex flex-col h-screen bg-white border-r border-border transition-all duration-300',
-                collapsed ? 'w-16' : 'w-64'
+                'no-print flex flex-col h-screen bg-background border-r border-border transition-all duration-300',
+                collapsed ? 'w-16' : 'w-64',
+                className
             )}
         >
             {/* Logo */}
-            <div className="flex items-center justify-between p-4 border-b border-border">
+            <div className="flex items-center justify-between p-6 border-b border-white/5">
                 {!collapsed && (
-                    <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
+                    <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-xl bg-gradient-primary flex items-center justify-center shadow-neon">
                             <span className="text-white font-bold text-sm">{orgInitials}</span>
                         </div>
-                        <span className="font-display font-bold text-lg text-neutral-900">{orgDisplayName}</span>
+                        <span className="font-display font-bold text-xl text-foreground tracking-tight">{orgDisplayName}</span>
                     </div>
                 )}
                 <button
                     onClick={() => setCollapsed(!collapsed)}
-                    className="p-1.5 rounded-md hover:bg-surface transition-colors"
+                    className="p-2 rounded-lg hover:bg-white/5 text-muted-foreground hover:text-white transition-all duration-200"
                 >
                     {collapsed ? (
-                        <ChevronRight className="h-5 w-5 text-neutral-900" />
+                        <ChevronRight className="h-5 w-5" />
                     ) : (
-                        <ChevronLeft className="h-5 w-5 text-neutral-900" />
+                        <ChevronLeft className="h-5 w-5" />
                     )}
                 </button>
             </div>
@@ -124,7 +125,7 @@ export function Sidebar() {
                 {navigation.map((section) => (
                     <div key={section.title}>
                         {!collapsed && (
-                            <h3 className="text-sm font-bold text-neutral-800 uppercase tracking-wider mb-2 px-4">
+                            <h3 className="text-xs font-bold text-muted-foreground/50 uppercase tracking-widest mb-2 px-4">
                                 {section.title}
                             </h3>
                         )}
@@ -147,15 +148,19 @@ export function Sidebar() {
                                     <Link
                                         key={item.href}
                                         href={item.href}
+                                        onClick={onClose}
                                         className={cn(
-                                            'group flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+                                            'group flex items-center text-sm font-medium transition-all duration-200',
+                                            collapsed 
+                                                ? 'justify-center w-10 h-10 mx-auto rounded-lg p-0' 
+                                                : 'gap-3 px-3 py-2 rounded-xl w-full',
                                             isActive
-                                                ? 'bg-blue-50 text-blue-700'
-                                                : 'text-text-secondary hover:bg-surface hover:text-text-primary'
+                                                ? 'bg-gradient-to-r from-primary/20 to-cyan-500/20 text-white shadow-neon border border-white/10'
+                                                : 'text-muted-foreground hover:bg-white/5 hover:text-white' + (!collapsed ? ' hover:translate-x-1' : '')
                                         )}
                                         title={collapsed ? item.name : undefined}
                                     >
-                                        <item.icon className={cn('h-5 w-5 flex-shrink-0', isActive ? 'text-blue-700' : 'text-text-tertiary group-hover:text-text-primary')} />
+                                        <item.icon className={cn('h-5 w-5 flex-shrink-0 transition-colors', isActive ? 'text-cyan-400' : 'text-muted-foreground group-hover:text-cyan-400')} />
                                         {!collapsed && (
                                             <span className="flex-1 truncate">
                                                 {item.name}
@@ -164,7 +169,7 @@ export function Sidebar() {
                                         {!collapsed && badgeValue && (typeof badgeValue === 'number' ? badgeValue > 0 : true) && (
                                             <span className={cn(
                                                 'px-2 py-0.5 rounded-full text-xs font-medium',
-                                                isActive ? 'bg-blue-700 text-white' : 'bg-surface-active text-text-primary'
+                                                isActive ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-muted-foreground'
                                             )}>
                                                 {badgeValue}
                                             </span>
@@ -178,23 +183,23 @@ export function Sidebar() {
             </nav>
 
             {/* User Profile */}
-            <div className="p-4 border-t border-border space-y-2">
+            <div className="p-4 border-t border-white/10 space-y-2">
                 {role === 'admin' && (
                     <Link
                         href="/settings"
                         className={cn(
-                            'flex items-center gap-3 p-3 rounded-md hover:bg-surface transition-colors',
+                            'flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group',
                             collapsed && 'justify-center'
                         )}
                     >
                         <Avatar fallback={user?.name?.substring(0, 2).toUpperCase() || 'U'} size="sm" />
                         {!collapsed && (
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium truncate text-neutral-900">{user?.name || 'Usuário'}</p>
-                                <p className="text-xs text-text-secondary truncate">{roleLabel || 'User'}</p>
+                                <p className="text-sm font-medium truncate text-foreground">{user?.name || 'Usuário'}</p>
+                                <p className="text-xs text-muted-foreground truncate">{roleLabel || 'User'}</p>
                             </div>
                         )}
-                        <Settings className={cn('h-4 w-4 text-text-secondary', collapsed && 'hidden')} />
+                        <Settings className={cn('h-4 w-4 text-muted-foreground group-hover:text-cyan-400 transition-colors', collapsed && 'hidden')} />
                     </Link>
                 )}
 

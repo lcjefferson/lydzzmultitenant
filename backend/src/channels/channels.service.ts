@@ -1,12 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
 import { Channel } from '@prisma/client';
+import { UazapiService } from '../integrations/uazapi.service';
 
 @Injectable()
 export class ChannelsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly uazapiService: UazapiService,
+  ) {}
 
   async create(dto: CreateChannelDto, organizationId: string): Promise<Channel> {
     const provider = dto.provider ?? 'whatsapp-official';
@@ -29,10 +33,10 @@ export class ChannelsService {
         name: dto.name,
         identifier: dto.identifier,
         accessToken: dto.accessToken,
-        config: mergedConfig,
+        config: baseConfig,
         status: dto.status,
         organizationId,
-      },
+      } as any,
     });
   }
 
@@ -55,9 +59,29 @@ export class ChannelsService {
   }
 
   async update(id: string, dto: UpdateChannelDto, organizationId: string): Promise<Channel> {
-    const channel = await this.findOne(id, organizationId);
+    const channel = (await this.findOne(id, organizationId)) as any;
     if (!channel) {
       throw new NotFoundException('Channel not found or access denied');
+    }
+
+    // Check if config is being updated for Uazapi
+    if (dto.config && channel.provider === 'uazapi') {
+      const newConfig = dto.config as Record<string, any>;
+      const serverUrl = newConfig.serverUrl || (channel.config as any)?.serverUrl || process.env.UAZAPI_API_URL;
+      const token = newConfig.token || (channel.config as any)?.token || process.env.UAZAPI_INSTANCE_TOKEN;
+
+      if (serverUrl && token) {
+        const check = await this.uazapiService.checkConnection(token, serverUrl);
+        if (!check.success) {
+          throw new BadRequestException('Falha ao conectar com Uazapi. Verifique Server URL e Token.');
+        }
+        if (check.instanceId) {
+          newConfig.instanceId = check.instanceId;
+        }
+        // Ensure critical fields are persisted
+        newConfig.serverUrl = serverUrl;
+        newConfig.token = token;
+      }
     }
 
     if (dto.accessToken) {

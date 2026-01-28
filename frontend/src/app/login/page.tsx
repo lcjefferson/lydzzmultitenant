@@ -24,19 +24,20 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 p-4">
-            <Card className="w-full max-w-md">
+        <div className="relative min-h-screen flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
+            <Card className="w-full max-w-md relative z-10 glass-card border-white/10">
                 <CardHeader className="space-y-1">
-                    <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">
+                    <CardTitle className="text-4xl font-bold text-center bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent font-display">
                         LydzzAI
                     </CardTitle>
-                    <CardDescription className="text-center text-gray-400">
+                    <CardDescription className="text-center text-muted-foreground">
                         Entre com sua conta para continuar
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="space-y-4">
                             <Input
                                 label="Email"
                                 type="email"
@@ -45,9 +46,8 @@ export default function LoginPage() {
                                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                 required
                                 disabled={isLoading}
+                                className="bg-secondary/50"
                             />
-                        </div>
-                        <div className="space-y-2">
                             <Input
                                 label="Senha"
                                 type="password"
@@ -56,11 +56,12 @@ export default function LoginPage() {
                                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                                 required
                                 disabled={isLoading}
+                                className="bg-secondary/50"
                             />
                         </div>
                         <Button
                             type="submit"
-                            className="w-full"
+                            className="w-full btn-gradient h-12 text-lg font-medium shadow-neon hover:shadow-neon-strong transition-all duration-300"
                             disabled={isLoading}
                             isLoading={isLoading}
                         >
@@ -70,7 +71,7 @@ export default function LoginPage() {
                 </CardContent>
             </Card>
 
-            <div className="absolute bottom-6 text-center text-xs text-gray-500 font-medium select-none">
+            <div className="absolute bottom-6 text-center text-xs text-muted-foreground/40 font-medium select-none">
                 v{process.env.NEXT_PUBLIC_APP_VERSION} • {process.env.NEXT_PUBLIC_BUILD_DATE}
             </div>
         </div>

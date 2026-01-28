@@ -14,8 +14,9 @@ import {
     Building,
     TrendingUp,
     X,
+    Upload,
 } from 'lucide-react';
-import { useLeads, useCreateLead, useUpdateLead, useDeleteLead, useLeadComments, useAddLeadComment, useDelegateLead } from '@/hooks/api/use-leads';
+import { useLeads, useCreateLead, useUpdateLead, useDeleteLead, useLeadComments, useAddLeadComment, useDelegateLead, useImportLeads } from '@/hooks/api/use-leads';
 import { useAuth } from '@/contexts/auth-context';
 import { api } from '@/lib/api';
 import { useLeadStats } from '@/hooks/api/use-analytics';
@@ -82,6 +83,41 @@ export default function LeadsPage() {
     const createLead = useCreateLead();
     const deleteLead = useDeleteLead();
     const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { mutate: importLeads, isPending: isImporting } = useImportLeads();
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws);
+            
+            const mappedData = data.map((row: any) => ({
+                name: row['Nome'] || row['Name'] || row['name'] || row['nome'],
+                email: row['Email'] || row['email'] || row['E-mail'],
+                phone: row['Telefone'] || row['Phone'] || row['phone'] || row['Celular'],
+                company: row['Empresa'] || row['Company'] || row['company'],
+                position: row['Cargo'] || row['Position'] || row['position'],
+            })).filter((item: any) => item.name || item.email || item.phone);
+
+            if (mappedData.length > 0) {
+                importLeads(mappedData as any);
+            } else {
+                toast.error('Nenhum dado válido encontrado no arquivo.');
+            }
+            
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        };
+        reader.readAsBinaryString(file);
+    };
+
 
     useEffect(() => {
         (async () => {
@@ -290,11 +326,11 @@ export default function LeadsPage() {
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {stats.map((stat) => (
-                        <Card key={stat.label}>
+                        <Card key={stat.label} className="p-8">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-text-secondary">{stat.label}</p>
-                                    <p className={`text-3xl font-bold mt-1 ${stat.color}`}>{stat.value}</p>
+                                    <p className={`text-3xl font-bold mt-2 ${stat.color}`}>{stat.value}</p>
                                 </div>
                                 <TrendingUp className={`h-8 w-8 ${stat.color}`} />
                             </div>
@@ -306,6 +342,24 @@ export default function LeadsPage() {
                 <div className="space-y-3">
                     {/* Export Buttons */}
                     <div className="flex flex-wrap items-center justify-end gap-4">
+                        <input
+                            type="file"
+                            accept=".xlsx, .xls"
+                            className="hidden"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                        />
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 hover:bg-surface"
+                            title="Importar Excel"
+                            aria-label="Importar Excel"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isImporting}
+                        >
+                            <Upload className="h-6 w-6 text-neutral-600" />
+                        </Button>
                         <Button
                             variant="ghost"
                             size="sm"
@@ -331,8 +385,8 @@ export default function LeadsPage() {
                     </div>
 
                     {/* Filters and Search */}
-                    <div className="flex items-center gap-4">
-                        <div className="relative flex-1">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1 w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
                             <input
                                 type="text"
@@ -342,7 +396,7 @@ export default function LeadsPage() {
                                 className="input pl-10 w-full"
                             />
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap gap-2">
                             <Button
                                 size="sm"
                                 variant={!tempFilter ? 'primary' : 'secondary'}
@@ -421,9 +475,9 @@ export default function LeadsPage() {
                                         >
                                             <td className="py-4 px-6">
                                                 <div className="space-y-1">
-                                                    <p className="font-medium text-neutral-900">{lead.name}</p>
+                                                    <p className="font-medium text-white">{lead.name}</p>
                                                     {lead.email && (
-                                                        <div className="flex items-center gap-3 text-sm text-neutral-700">
+                                                        <div className="flex items-center gap-3 text-sm text-white">
                                                             <span className="flex items-center gap-1">
                                                                 <Mail className="h-3 w-3" />
                                                                 {lead.email}
@@ -433,11 +487,11 @@ export default function LeadsPage() {
                                                     {(() => {
                                                         const name = getAssignedName(lead);
                                                         return name ? (
-                                                            <p className="text-xs text-neutral-700">Delegado: {name}</p>
+                                                            <p className="text-xs text-white">Delegado: {name}</p>
                                                         ) : null;
                                                     })()}
                                                     {(lead.company || lead.position) && (
-                                                        <p className="text-sm text-neutral-600">
+                                                        <p className="text-sm text-white">
                                                             {lead.company} {lead.position && `• ${lead.position}`}
                                                         </p>
                                                     )}
@@ -454,7 +508,7 @@ export default function LeadsPage() {
                                                             style={{ width: `${lead.score}%` }}
                                                         />
                                                     </div>
-                                                    <span className="text-sm font-medium">{lead.score}</span>
+                                                    <span className="text-sm font-medium text-white">{lead.score}</span>
                                                 </div>
                                             </td>
                                             <td className="py-4 px-6">
@@ -463,7 +517,7 @@ export default function LeadsPage() {
                                             <td className="py-4 px-6">
                                                 {(() => {
                                                     const name = getAssignedName(lead);
-                                                    return name ? <span className="text-sm text-neutral-900">{name}</span> : <span className="text-sm text-neutral-500">-</span>;
+                                                    return name ? <span className="text-sm text-white">{name}</span> : <span className="text-sm text-gray-300">-</span>;
                                                 })()}
                                             </td>
                                             <td className="py-4 px-6">
@@ -505,6 +559,7 @@ export default function LeadsPage() {
                         <Card
                             className="w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4 bg-white text-neutral-900 shadow-2xl border border-primary-500/20"
                             onClick={(e) => e.stopPropagation()}
+                            style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
                         >
                             <div className="p-6">
                                 <div className="flex items-start justify-between mb-6">
@@ -600,6 +655,7 @@ export default function LeadsPage() {
                             <Card
                                 className="w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4 bg-white text-neutral-900 shadow-2xl border border-primary-500/20"
                                 onClick={(e) => e.stopPropagation()}
+                                style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
                             >
                                 <div className="p-6 space-y-6">
                                     <div className="flex items-start justify-between">
@@ -613,7 +669,7 @@ export default function LeadsPage() {
                                         </div>
                                         <button
                                             onClick={() => setSelectedLead(null)}
-                                            className="text-neutral-500 hover:text-neutral-800"
+                                            className="p-2 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
                                         >
                                             <X className="h-6 w-6" />
                                         </button>
@@ -933,7 +989,7 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
                                 <div>
                                     <p className="text-sm text-text-tertiary mb-1">Temperatura</p>
                                     <select
-                                        className="w-full border border-neutral-300 rounded-md p-2 text-sm"
+                                        className="w-full border border-neutral-300 rounded-md p-2 text-sm bg-white text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20 focus:outline-none focus:ring-1"
                                         value={temperature}
                                         onChange={(e) => setTemperature(e.target.value as 'hot' | 'warm' | 'cold')}
                                     >
@@ -956,7 +1012,7 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
                                         ];
                                         return (
                                             <select
-                                                className="w-full border border-neutral-300 rounded-md p-2 text-sm"
+                                                className="w-full border border-neutral-300 rounded-md p-2 text-sm bg-white text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20 focus:outline-none focus:ring-1"
                                                 value={status}
                                                 onChange={(e) => setStatus(e.target.value as typeof STAGES[number])}
                                             >

@@ -49,7 +49,7 @@ export default function InternalChatPage() {
     <div className="flex flex-col h-screen">
       <Header title="Chat Interno" description="Mensagens entre equipe e DMs internas" />
       <div className="flex-1 flex overflow-hidden">
-        <div className="w-80 border-r border-border bg-background-secondary flex flex-col">
+        <div className={`w-full md:w-80 border-r border-border bg-background-secondary flex flex-col ${selectedId ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-border flex gap-2">
             <Button size="sm" variant={tab === 'rooms' ? 'primary' : 'ghost'} onClick={() => setTab('rooms')}>Salas</Button>
             <Button size="sm" variant={tab === 'dms' ? 'primary' : 'ghost'} onClick={() => setTab('dms')}>DMs</Button>
@@ -59,15 +59,15 @@ export default function InternalChatPage() {
               <div className="p-4 text-center text-gray-500">Nenhum item</div>
             ) : (
               items.map((it) => (
-                <button key={it.id} className={`w-full p-4 flex items-start gap-3 hover:bg-surface transition-colors border-b border-border text-left ${selectedId === it.id ? 'bg-surface' : ''}`} onClick={() => setSelectedId(it.id)}>
+                <button key={it.id} className={`w-full p-4 flex items-start gap-3 hover:bg-slate-800 transition-colors border-b border-border text-left ${selectedId === it.id ? 'bg-slate-900' : ''}`} onClick={() => setSelectedId(it.id)}>
                   <div className="h-2 w-2 rounded-full mt-2 flex-shrink-0 bg-info" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div className="min-w-0">
-                        <h4 className="font-medium truncate text-neutral-900">{'name' in it ? it.name : 'Sala'}</h4>
-                        <p className="text-xs text-text-tertiary truncate">{it.lastMessage || ''}</p>
+                        <h4 className={`font-medium truncate ${selectedId === it.id ? 'text-white' : 'text-neutral-900'}`}>{'name' in it ? it.name : 'Sala'}</h4>
+                        <p className={`text-xs truncate ${selectedId === it.id ? 'text-gray-300' : 'text-text-tertiary'}`}>{it.lastMessage || ''}</p>
                       </div>
-                      <span className="text-xs text-text-tertiary flex-shrink-0">{new Date(it.lastMessageAt).toLocaleString('pt-BR')}</span>
+                      <span className={`text-xs flex-shrink-0 ${selectedId === it.id ? 'text-gray-300' : 'text-text-tertiary'}`}>{new Date(it.lastMessageAt).toLocaleString('pt-BR')}</span>
                     </div>
                   </div>
                 </button>

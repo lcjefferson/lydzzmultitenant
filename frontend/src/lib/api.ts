@@ -28,9 +28,20 @@ import type {
 } from '@/types/api';
 
 const WS_BASE = process.env.NEXT_PUBLIC_WS_URL?.replace(/\/$/, '');
-const API_URL =
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
-    (WS_BASE ? `${WS_BASE}/api` : 'http://localhost:3001/api');
+
+const getApiUrl = () => {
+    let url = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') ||
+        (WS_BASE ? `${WS_BASE}/api` : 'http://localhost:3001/api');
+
+    // Fix Mixed Content: Upgrade HTTP to HTTPS if running on HTTPS page
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+        url = url.replace('http://', 'https://');
+    }
+    
+    return url;
+};
+
+const API_URL = getApiUrl();
 
 class ApiService {
     public api: AxiosInstance;
@@ -156,8 +167,14 @@ class ApiService {
 
     getCurrentUser(): User | null {
         if (typeof window === 'undefined') return null;
-        const user = localStorage.getItem('user');
-        return user ? (JSON.parse(user) as User) : null;
+        try {
+            const user = localStorage.getItem('user');
+            return user ? (JSON.parse(user) as User) : null;
+        } catch (error) {
+            console.error('Error parsing user from localStorage:', error);
+            localStorage.removeItem('user'); // Clear invalid data
+            return null;
+        }
     }
 
     // Organizations
@@ -409,6 +426,11 @@ class ApiService {
 
     async delegateLead(id: string, assignedToId: string) {
         const response = await this.api.post(`/leads/${id}/delegate`, { assignedToId });
+        return response.data;
+    }
+
+    async importLeads(leads: CreateLeadDto[]) {
+        const response = await this.api.post('/leads/import', leads);
         return response.data;
     }
 

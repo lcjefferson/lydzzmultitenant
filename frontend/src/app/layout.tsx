@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
@@ -15,6 +15,12 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "LydzzAI - AI-Powered Customer Service",
   description: "Create and manage AI agents for automated customer service on WhatsApp and Instagram",
@@ -27,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className="dark" suppressHydrationWarning>
-      <body className={`${inter.variable} ${spaceGrotesk.variable} antialiased`} suppressHydrationWarning>
+      <body className={`${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} antialiased`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

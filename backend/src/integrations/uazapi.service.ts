@@ -20,6 +20,31 @@ export class UazapiService {
       'https://api.uazapi.dev';
   }
 
+  private async requestWithRetry<T>(
+    method: 'get' | 'post',
+    url: string,
+    data: any = null,
+    config: any = {},
+    retries: number = 3,
+    delay: number = 1000
+  ): Promise<any> {
+    try {
+      if (method === 'get') {
+        return await axios.get(url, config);
+      } else {
+        return await axios.post(url, data, config);
+      }
+    } catch (error) {
+      const err = error as any;
+      if (retries > 0 && err.response && err.response.status === 429) {
+        this.logger.warn(`Rate limit exceeded for ${url}. Retrying in ${delay}ms... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.requestWithRetry(method, url, data, config, retries - 1, delay * 2);
+      }
+      throw error;
+    }
+  }
+
   /**
    * Send a text message via Uazapi
    */
@@ -45,7 +70,8 @@ export class UazapiService {
 
       this.logger.log(`Sending Uazapi message to ${url} with payload: ${JSON.stringify(payload)}`);
 
-      const response = await axios.post<unknown>(
+      const response = await this.requestWithRetry(
+        'post',
         url,
         payload,
         {
@@ -54,7 +80,7 @@ export class UazapiService {
             'Accept': 'application/json',
             'token': token, // Token identifies the instance
           },
-        },
+        }
       );
       this.logger.log(`Message sent to ${to} via Uazapi. Status: ${(response as any).status}`);
       return true;
@@ -131,7 +157,8 @@ export class UazapiService {
 
       this.logger.log(`Sending Uazapi media to ${url} with payload: ${JSON.stringify({ ...payload, file: payload.file.substring(0, 50) + '...' })}`);
 
-      const response = await axios.post<unknown>(
+      const response = await this.requestWithRetry(
+        'post',
         url,
         payload,
         {
@@ -140,7 +167,7 @@ export class UazapiService {
             'Accept': 'application/json',
             'token': token,
           },
-        },
+        }
       );
       this.logger.log(`Media sent to ${to} via Uazapi. Status: ${(response as any).status}`);
       return true;
@@ -289,6 +316,29 @@ export class UazapiService {
             this.logger.error(`Uazapi error response headers: ${JSON.stringify(err.response.headers)}`);
         }
         return null;
+    }
+  }
+
+  async checkConnection(token: string, apiUrl?: string): Promise<{ success: boolean; instanceId?: string }> {
+    try {
+      const baseUrl = apiUrl || this.apiUrl;
+      // Endpoint /instance/status is common for Uazapi/Evolution
+      const url = `${baseUrl}/instance/status`;
+      
+      const response = await axios.get(url, {
+        headers: { 'token': token }
+      });
+
+      if (response.status === 200) {
+          const data = response.data;
+          // Try to find instanceId in various common fields
+          const instanceId = data.instanceId || data.id || (data.instance && data.instance.instanceId);
+          return { success: true, instanceId };
+      }
+      return { success: false };
+    } catch (error) {
+      this.logger.error(`Uazapi connection check failed: ${(error as Error).message}`);
+      return { success: false };
     }
   }
 

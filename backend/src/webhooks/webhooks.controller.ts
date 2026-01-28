@@ -21,6 +21,7 @@ import { UpdateWebhookDto } from './dto/update-webhook.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { WhatsAppService } from '../integrations/whatsapp.service';
 import { UazapiService } from '../integrations/uazapi.service';
+import { FacebookService } from '../integrations/facebook.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConversationsService } from '../conversations/conversations.service';
 import { Prisma } from '@prisma/client';
@@ -33,6 +34,7 @@ export class WebhooksController {
     private readonly webhooksService: WebhooksService,
     private readonly whatsAppService: WhatsAppService,
     private readonly uazapiService: UazapiService,
+    private readonly facebookService: FacebookService,
     private readonly prisma: PrismaService,
     private readonly conversationsService: ConversationsService,
     private readonly messagesService: MessagesService,
@@ -52,7 +54,7 @@ export class WebhooksController {
     const channel = await this.prisma.channel.findFirst({
       where: { type: 'whatsapp' },
     });
-    const cfg = channel?.config as unknown;
+    const cfg = (channel as any)?.config as unknown;
     let configured: string | undefined;
     if (
       typeof cfg === 'object' &&
@@ -93,7 +95,7 @@ export class WebhooksController {
     const channel = await this.prisma.channel.findFirst({
       where: { type: 'whatsapp' },
     });
-    const cfg = channel?.config as unknown;
+    const cfg = (channel as any)?.config as unknown;
     let configured: string | undefined;
     if (
       typeof cfg === 'object' &&
@@ -143,6 +145,52 @@ export class WebhooksController {
     };
   }
 
+  // Facebook Webhook Verification (GET)
+  @Get('facebook')
+  async verifyFacebookWebhook(
+    @Query('hub.mode') mode: string,
+    @Query('hub.verify_token') token: string,
+    @Query('hub.challenge') challenge: string,
+  ) {
+    const defaultToken = process.env.FACEBOOK_VERIFY_TOKEN || 'facebook_leads_verify_token';
+    let verifyToken = defaultToken;
+    
+    // Check if configured in any facebook_leads channel
+    const channel = await this.prisma.channel.findFirst({
+      where: { type: 'facebook_leads' },
+    });
+    const cfg = (channel as any)?.config as unknown;
+    let configured: string | undefined;
+    if (
+      typeof cfg === 'object' &&
+      cfg !== null &&
+      'verifyToken' in (cfg as Record<string, unknown>) &&
+      typeof (cfg as { verifyToken?: unknown }).verifyToken === 'string'
+    ) {
+      configured = (cfg as { verifyToken: string }).verifyToken;
+    }
+    verifyToken = configured || defaultToken;
+
+    const result = this.facebookService.verifyWebhook(
+      mode,
+      token,
+      challenge,
+      verifyToken,
+    );
+
+    if (result) {
+      return result;
+    }
+    return { error: 'Verification failed' };
+  }
+
+  // Facebook Webhook (POST) - Receive leads
+  @Post('facebook')
+  @HttpCode(200)
+  async handleFacebookWebhook(@Body() payload: any) {
+    return this.facebookService.handleWebhookPayload(payload);
+  }
+
   // WhatsApp Webhook (POST) - Receive messages
   @Post('whatsapp')
   @HttpCode(200)
@@ -182,8 +230,8 @@ export class WebhooksController {
       if (incomingMessage.phoneNumberId) {
         const matched = activeChannels.find((ch) => {
           const cfg =
-            typeof ch.config === 'object' && ch.config
-              ? (ch.config as { phoneNumberId?: string })
+            typeof (ch as any).config === 'object' && (ch as any).config
+              ? ((ch as any).config as { phoneNumberId?: string })
               : undefined;
           return cfg?.phoneNumberId === incomingMessage.phoneNumberId;
         });
@@ -200,7 +248,7 @@ export class WebhooksController {
           organizationId: channel.organization.id,
           phone: incomingMessage.from,
         },
-        include: { conversation: true },
+        include: { conversation: true } as any,
       });
 
       const lead =
@@ -210,7 +258,7 @@ export class WebhooksController {
             name: incomingMessage.contactName || incomingMessage.from,
             phone: incomingMessage.from,
             status: 'Lead Novo',
-            temperature: 'cold',
+            temperature: 'cold' as any,
             source: channel.type,
             organizationId: channel.organization.id,
           },
@@ -231,10 +279,10 @@ export class WebhooksController {
         where: {
           contactIdentifier: incomingMessage.from,
           channelId: channel.id,
-        },
+        } as any,
       });
 
-      if (!conversation && (existingLead?.conversation || lead)) {
+      if (!conversation && ((existingLead as any)?.conversation || lead)) {
         const convByLead = await this.prisma.conversation.findFirst({
           where: { leadId: existingLead?.id ?? lead.id },
         });
@@ -256,7 +304,7 @@ export class WebhooksController {
             organizationId: channel.organization.id,
             leadId: lead.id,
             agentId: defaultAgent?.id,
-          },
+          } as any,
         });
       } else if (!conversation.leadId) {
         await this.prisma.conversation.update({
@@ -273,7 +321,7 @@ export class WebhooksController {
       ) {
         conversation = await this.prisma.conversation.update({
           where: { id: conversation.id },
-          data: { contactName: incomingMessage.contactName },
+          data: { contactName: incomingMessage.contactName } as any,
         });
       }
 
@@ -292,8 +340,8 @@ export class WebhooksController {
       let attachments: Record<string, unknown> | undefined;
       if (mappedType !== 'text' && incomingMessage.mediaId) {
         const cfg =
-          typeof channel.config === 'object' && channel.config
-            ? (channel.config as {
+          typeof (channel as any).config === 'object' && (channel as any).config
+            ? ((channel as any).config as {
                 phoneNumberId?: string;
                 accessToken?: string;
               })
@@ -381,8 +429,8 @@ export class WebhooksController {
       if (incomingMessage.instanceId) {
         channel = channels.find((ch) => {
           const cfg =
-            typeof ch.config === 'object' && ch.config
-              ? (ch.config as { instanceId?: string })
+            typeof (ch as any).config === 'object' && (ch as any).config
+              ? ((ch as any).config as { instanceId?: string })
               : undefined;
           return cfg?.instanceId === incomingMessage.instanceId;
         });
@@ -395,7 +443,7 @@ export class WebhooksController {
               if (ch.provider === 'uazapi') return true;
 
               // Fallback to config for legacy or inconsistent data
-              const cfg = typeof ch.config === 'object' ? ch.config as any : {};
+              const cfg = typeof (ch as any).config === 'object' ? (ch as any).config as any : {};
               return cfg.provider === 'uazapi';
           });
 
@@ -412,7 +460,7 @@ export class WebhooksController {
       
       if (!channel) {
         this.logger.error(`No channel found for Uazapi instance: ${incomingMessage.instanceId}`);
-        this.logger.error(`Available channels: ${channels.map(c => `${c.name} (${(c.config as any)?.instanceId})`).join(', ')}`);
+        this.logger.error(`Available channels: ${channels.map(c => `${c.name} (${(c as any).config?.instanceId})`).join(', ')}`);
         return { status: 'no_channel' };
       }
 
@@ -421,7 +469,7 @@ export class WebhooksController {
           organizationId: channel.organization.id,
           phone: incomingMessage.from,
         },
-        include: { conversation: true },
+        include: { conversation: true } as any,
       });
 
       const lead =
@@ -431,7 +479,7 @@ export class WebhooksController {
             name: incomingMessage.contactName || incomingMessage.from,
             phone: incomingMessage.from,
             status: 'Lead Novo',
-            temperature: 'cold',
+            temperature: 'cold' as any,
             source: channel.type,
             organizationId: channel.organization.id,
           },
@@ -452,10 +500,10 @@ export class WebhooksController {
         where: {
           contactIdentifier: incomingMessage.from,
           channelId: channel.id,
-        },
+        } as any,
       });
 
-      if (!conversation && (existingLead?.conversation || lead)) {
+      if (!conversation && ((existingLead as any)?.conversation || lead)) {
         const convByLead = await this.prisma.conversation.findFirst({
           where: { leadId: existingLead?.id ?? lead.id },
         });
@@ -477,7 +525,7 @@ export class WebhooksController {
             organizationId: channel.organization.id,
             leadId: lead.id,
             agentId: defaultAgent?.id,
-          },
+          } as any,
         });
       } else if (!conversation.leadId) {
         await this.prisma.conversation.update({

@@ -67,8 +67,10 @@ ssh $SERVER_USER@$SERVER_HOST "
         ufw allow 22/tcp
         ufw allow 80/tcp
         ufw allow 443/tcp
-        ufw allow 4000/tcp
-        ufw allow 4001/tcp
+        # Ports 4000/4001 should NOT be exposed publicly. Nginx handles proxying.
+        ufw delete allow 4000/tcp
+        ufw delete allow 4001/tcp
+        
         # Enable UFW non-interactively
         echo 'y' | ufw enable
         ufw status
@@ -80,10 +82,27 @@ ssh $SERVER_USER@$SERVER_HOST "
 # 3.6 Update Nginx Configuration
 echo -e "${YELLOW}Updating Nginx configuration...${NC}"
 ssh $SERVER_USER@$SERVER_HOST "
+    # Install Certbot if not present
+    if ! command -v certbot >/dev/null 2>&1; then
+        echo 'Installing Certbot...'
+        apt-get update
+        apt-get install -y certbot python3-certbot-nginx
+    fi
+
     cp $DEST_DIR/nginx_vps.conf /etc/nginx/sites-available/lydzz.com.br
     ln -sf /etc/nginx/sites-available/lydzz.com.br /etc/nginx/sites-enabled/
-    nginx -t && systemctl reload nginx
-    echo 'Nginx configuration updated and reloaded.'
+    
+    # Test Nginx config before reloading
+    nginx -t
+    systemctl reload nginx
+    
+    # Setup SSL with Certbot (Auto-renew)
+    echo 'Configuring SSL with Let\'s Encrypt...'
+    # This command obtains the cert and modifies the nginx config automatically
+    # It uses --redirect to force HTTPS
+    certbot --nginx -d lydzz.com.br -d www.lydzz.com.br --non-interactive --agree-tos --email contato@lydzz.com.br --redirect
+    
+    echo 'Nginx configuration updated with SSL.'
 "
 
 # 4. Deploy with Docker Compose

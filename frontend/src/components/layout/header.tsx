@@ -81,22 +81,22 @@ export function Header({ title, description, actions }: HeaderProps) {
 
     return (
         <div className="border-b border-border bg-white sticky top-0 z-10">
-            <div className="flex items-center justify-between p-6">
+            <div className="flex items-center justify-between p-4 md:p-6">
                 <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-white">{title}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
                     {description && (
-                        <p className="text-sm text-text-secondary mt-1">{description}</p>
+                        <p className="text-sm text-gray-500 mt-1">{description}</p>
                     )}
                 </div>
 
                 <div className="flex items-center gap-4">
                     {/* Search */}
-                    <div className="relative hidden md:block">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                    <div className="relative hidden md:block group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-primary-500 transition-colors duration-200" />
                         <input
                             type="text"
                             placeholder="Buscar..."
-                            className="input pl-10 w-64"
+                            className="pl-10 w-64 h-10 bg-slate-100 border-2 border-transparent rounded-full text-sm focus:bg-white focus:outline-none focus:border-primary-500 focus:ring-4 focus:ring-primary-500/10 transition-all duration-200 placeholder:text-gray-400 text-gray-900"
                         />
                     </div>
 
@@ -195,9 +195,9 @@ export function Header({ title, description, actions }: HeaderProps) {
                             </div>
                             <div className="hidden md:block text-left">
                                 <p className="text-sm font-medium text-neutral-900">{user?.name || 'Usuário'}</p>
-                                <p className="text-xs text-text-tertiary">{roleLabel || 'user'}</p>
+                                <p className="text-xs text-neutral-500">{roleLabel || 'user'}</p>
                             </div>
-                            <ChevronDown className="h-4 w-4 text-text-tertiary" />
+                            <ChevronDown className="h-4 w-4 text-neutral-500" />
                         </button>
 
                         {/* Dropdown Menu */}
@@ -207,17 +207,20 @@ export function Header({ title, description, actions }: HeaderProps) {
                                     className="fixed inset-0 z-10"
                                     onClick={() => setShowUserMenu(false)}
                                 />
-                                <div className="absolute right-0 mt-2 w-48 bg-secondary border border-border rounded-lg shadow-glow py-2 z-20">
+                                <div className="absolute right-0 mt-2 w-48 bg-white border border-border rounded-lg shadow-glow z-20 overflow-hidden">
+                                    <div className="px-4 py-3 bg-slate-900">
+                                        <p className="text-sm font-medium text-white">{user?.name}</p>
+                                    </div>
                                     <div className="px-4 py-2 border-b border-border">
-                                        <p className="text-sm font-medium text-neutral-900">{user?.name}</p>
-                                        <p className="text-xs text-text-tertiary">{user?.email}</p>
+                                        <p className="text-xs font-bold text-neutral-900 uppercase mb-1">{roleLabel}</p>
+                                        <p className="text-xs text-neutral-600">{user?.email}</p>
                                     </div>
                                     <button
                                         onClick={() => {
                                             logout();
                                             setShowUserMenu(false);
                                         }}
-                                        className="w-full px-4 py-2 text-left text-sm hover:bg-surface transition-colors flex items-center gap-2 text-error"
+                                        className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 hover:text-red-700 transition-colors flex items-center gap-2 text-red-600"
                                     >
                                         <LogOut className="h-4 w-4" />
                                         Sair

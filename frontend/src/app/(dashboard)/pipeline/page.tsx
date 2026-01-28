@@ -124,7 +124,7 @@ export default function PipelinePage() {
     <div>
       <Header title="Pipeline" description="Acompanhe o funil de vendas" />
 
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           {STAGES.map((stage) => {
             const stageItems = items.filter((l) => l.status === stage);
@@ -162,7 +162,7 @@ export default function PipelinePage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-sm font-medium truncate text-neutral-900">{lead.name}</p>
+                            <p className="text-sm font-medium truncate text-white">{lead.name}</p>
                             {(lead.phone || lead.email) && (
                               <p className="text-xs text-text-tertiary truncate">{lead.phone || lead.email}</p>
                               )}

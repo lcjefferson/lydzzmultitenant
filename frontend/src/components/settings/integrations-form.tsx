@@ -108,17 +108,17 @@ export function IntegrationsForm() {
     };
 
     return (
-        <Card>
+        <Card className="bg-slate-900 border-slate-800">
             <CardHeader>
-                <CardTitle>OpenAI Integration</CardTitle>
-                <CardDescription>
+                <CardTitle className="text-white">OpenAI Integration</CardTitle>
+                <CardDescription className="text-gray-400">
                     Configure sua chave de API da OpenAI para habilitar os recursos de IA.
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6 text-neutral-900">
+                <form onSubmit={handleSubmit} className="space-y-6 text-white">
                     <div className="space-y-2">
-                        <Label htmlFor="openaiApiKey" className="text-neutral-900">API Key</Label>
+                        <Label htmlFor="openaiApiKey" className="text-white">API Key</Label>
                         <div className="relative">
                             <Input
                                 id="openaiApiKey"
@@ -128,7 +128,7 @@ export function IntegrationsForm() {
                                 value={editingKey ? formData.openaiApiKey : hasOpenAIKey ? "••••••••••" : formData.openaiApiKey}
                                 onChange={handleChange}
                                 disabled={hasOpenAIKey && !editingKey}
-                                className="pr-28"
+                                className="pr-28 bg-slate-800 border-slate-700 text-white placeholder:text-gray-500"
                             />
                             <div className="absolute right-0 top-0 h-full flex items-center gap-1 pr-2">
                                 {hasOpenAIKey && (
@@ -136,6 +136,7 @@ export function IntegrationsForm() {
                                         type="button"
                                         variant="ghost"
                                         size="sm"
+                                        className="text-gray-300 hover:text-white hover:bg-slate-700"
                                         onClick={() => {
                                             setEditingKey((prev) => {
                                                 const next = !prev;
@@ -156,19 +157,19 @@ export function IntegrationsForm() {
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="hover:bg-transparent"
+                                    className="hover:bg-slate-700"
                                     disabled={!editingKey}
                                     onClick={() => setShowKey(!showKey)}
                                 >
                                     {showKey ? (
-                                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                        <EyeOff className="h-4 w-4 text-gray-400" />
                                     ) : (
-                                        <Eye className="h-4 w-4 text-muted-foreground" />
+                                        <Eye className="h-4 w-4 text-gray-400" />
                                     )}
                                 </Button>
                             </div>
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm text-gray-400">
                             {hasOpenAIKey
                                 ? (editingKey
                                     ? 'Digite uma nova chave para substituir a atual.'
@@ -179,24 +180,24 @@ export function IntegrationsForm() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                            <Label htmlFor="openaiModel" className="text-neutral-900">Modelo</Label>
+                            <Label htmlFor="openaiModel" className="text-white">Modelo</Label>
                             <Select
                                 value={formData.openaiModel}
                                 onValueChange={handleSelectChange}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-slate-800 border-slate-700 text-white">
                                     <SelectValue placeholder="Selecione o modelo" />
                                 </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                                    <SelectItem value="gpt-4">GPT-4</SelectItem>
-                                    <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                                <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                                    <SelectItem value="gpt-4-turbo" className="focus:bg-slate-700 focus:text-white">GPT-4 Turbo</SelectItem>
+                                    <SelectItem value="gpt-4" className="focus:bg-slate-700 focus:text-white">GPT-4</SelectItem>
+                                    <SelectItem value="gpt-3.5-turbo" className="focus:bg-slate-700 focus:text-white">GPT-3.5 Turbo</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="openaiMaxTokens" className="text-neutral-900">Max Tokens</Label>
+                            <Label htmlFor="openaiMaxTokens" className="text-white">Max Tokens</Label>
                             <Input
                                 id="openaiMaxTokens"
                                 name="openaiMaxTokens"
@@ -205,11 +206,12 @@ export function IntegrationsForm() {
                                 max={4000}
                                 value={formData.openaiMaxTokens}
                                 onChange={handleChange}
+                                className="bg-slate-800 border-slate-700 text-white"
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="openaiTemperature" className="text-neutral-900">Temperatura (0-1)</Label>
+                            <Label htmlFor="openaiTemperature" className="text-white">Temperatura (0-1)</Label>
                             <Input
                                 id="openaiTemperature"
                                 name="openaiTemperature"
@@ -219,6 +221,7 @@ export function IntegrationsForm() {
                                 step={0.1}
                                 value={formData.openaiTemperature}
                                 onChange={handleChange}
+                                className="bg-slate-800 border-slate-700 text-white"
                             />
                         </div>
                     </div>

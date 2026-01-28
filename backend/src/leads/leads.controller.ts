@@ -22,6 +22,14 @@ import { GetUser } from '../auth/decorators/get-user.decorator';
 export class LeadsController {
   constructor(private readonly leadsService: LeadsService) {}
 
+  @Post('import')
+  importLeads(
+    @Body() leads: CreateLeadDto[],
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.leadsService.import(leads, organizationId);
+  }
+
   @Post()
   create(
     @Body() createLeadDto: CreateLeadDto,

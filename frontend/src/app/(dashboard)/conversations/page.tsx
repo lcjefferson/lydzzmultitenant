@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { MessageBubble } from '@/components/chat/message-bubble';
-import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X, Mic, Square, RefreshCw } from 'lucide-react';
+import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X, Mic, Square, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useConversations, useUpdateConversation } from '@/hooks/api/use-conversations';
 import { useMessages, useCreateMessage } from '@/hooks/api/use-messages';
 import { useSocket } from '@/hooks/use-socket';
@@ -23,6 +23,76 @@ import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+// Mock Data
+const MOCK_CONVERSATION = {
+    id: 'mock-1',
+    contactName: 'Ana Silva',
+    contactIdentifier: '+55 11 99999-9999',
+    status: 'active' as const,
+    channelId: 'mock-channel',
+    organizationId: 'mock-org',
+    lastMessageAt: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    messages: [
+        {
+            id: 'm1',
+            conversationId: 'mock-1',
+            content: 'Olá! Gostaria de saber mais sobre os planos.',
+            senderType: 'contact' as const,
+            type: 'text' as const,
+            createdAt: new Date(Date.now() - 1000 * 60 * 60),
+            updatedAt: new Date(Date.now() - 1000 * 60 * 60)
+        },
+        {
+            id: 'm2',
+            conversationId: 'mock-1',
+            content: 'Claro, Ana! Temos opções Starter, Professional e Enterprise. Qual o tamanho da sua equipe?',
+            senderType: 'user' as const,
+            type: 'text' as const,
+            createdAt: new Date(Date.now() - 1000 * 60 * 30),
+            updatedAt: new Date(Date.now() - 1000 * 60 * 30)
+        },
+        {
+            id: 'm3',
+            conversationId: 'mock-1',
+            content: 'Somos em 15 pessoas atualmente.',
+            senderType: 'contact' as const,
+            type: 'text' as const,
+            createdAt: new Date(Date.now() - 1000 * 60 * 25),
+            updatedAt: new Date(Date.now() - 1000 * 60 * 25)
+        },
+        {
+            id: 'm4',
+            conversationId: 'mock-1',
+            content: 'Entendi. O plano Professional seria ideal para vocês.',
+            senderType: 'user' as const,
+            type: 'text' as const,
+            createdAt: new Date(Date.now() - 1000 * 60 * 20),
+            updatedAt: new Date(Date.now() - 1000 * 60 * 20)
+        },
+        {
+            id: 'm5',
+            conversationId: 'mock-1',
+            content: '',
+            senderType: 'contact' as const,
+            type: 'image' as const,
+            attachments: { url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=300&q=80' },
+            createdAt: new Date(Date.now() - 1000 * 60 * 15),
+            updatedAt: new Date(Date.now() - 1000 * 60 * 15)
+        },
+        {
+            id: 'm6',
+            conversationId: 'mock-1',
+            content: 'Aqui está uma foto do nosso escritório atual.',
+            senderType: 'contact' as const,
+            type: 'text' as const,
+            createdAt: new Date(Date.now() - 1000 * 60 * 14),
+            updatedAt: new Date(Date.now() - 1000 * 60 * 14)
+        }
+    ]
+};
 
 // Componentes de ícones de arquivo coloridos
 const FileIconPdf = ({ className }: { className?: string }) => (
@@ -139,7 +209,11 @@ export default function ConversationsPage() {
         }
     };
 
-    const { data: conversations, isLoading: conversationsLoading } = useConversations();
+    const { data: apiConversations, isLoading: conversationsLoading } = useConversations();
+    // Use mock if no conversations are found
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const conversations = (apiConversations && apiConversations.length > 0) ? apiConversations : [MOCK_CONVERSATION as any];
+
     const searchParams = useSearchParams();
     const contactParam = searchParams.get('contact');
     const convParam = searchParams.get('conversationId');
@@ -153,7 +227,9 @@ export default function ConversationsPage() {
         ?? preselectedFromContact
         ?? (conversations && conversations.length > 0 ? conversations[0].id : null);
 
-    const { data: messages } = useMessages(effectiveSelectedId || '');
+    const { data: apiMessages } = useMessages(effectiveSelectedId || '');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const messages = effectiveSelectedId === 'mock-1' ? (MOCK_CONVERSATION.messages as any[]) : apiMessages;
     const createMessage = useCreateMessage();
     const updateConversation = useUpdateConversation();
 
@@ -493,15 +569,17 @@ export default function ConversationsPage() {
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Conversation List - Left Column */}
-                <div className="w-80 border-r border-border flex flex-col bg-background-secondary">
+                <div className="w-80 border-r border-white/10 flex flex-col bg-[#111b21]">
                     {/* Search */}
-                    <div className="p-4 border-b border-border">
+                    <div className="p-3 border-b border-white/10 bg-[#202c33]">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <Search className="h-4 w-4 text-gray-400" />
+                            </div>
                             <input
                                 type="text"
                                 placeholder="Buscar conversas..."
-                                className="input pl-10 w-full"
+                                className="block w-full pl-10 pr-3 py-2 border-none rounded-lg leading-5 bg-[#111b21] text-white placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-sm"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -509,25 +587,28 @@ export default function ConversationsPage() {
                     </div>
 
                     {/* Filters */}
-                    <div className="p-4 border-b border-border flex gap-2">
+                    <div className="p-4 border-b border-white/10 flex gap-2">
                         <Button
                             size="sm"
-                            variant={filter === 'all' ? 'primary' : 'ghost'}
+                            variant="ghost"
                             onClick={() => setFilter('all')}
+                            className={filter === 'all' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
                         >
                             Todas
                         </Button>
                         <Button
                             size="sm"
-                            variant={filter === 'active' ? 'primary' : 'ghost'}
+                            variant="ghost"
                             onClick={() => setFilter('active')}
+                            className={filter === 'active' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
                         >
                             Ativas
                         </Button>
                         <Button
                             size="sm"
-                            variant={filter === 'waiting' ? 'primary' : 'ghost'}
+                            variant="ghost"
                             onClick={() => setFilter('waiting')}
+                            className={filter === 'waiting' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
                         >
                             Aguardando
                         </Button>
@@ -553,6 +634,7 @@ export default function ConversationsPage() {
                                         status={conv.status}
                                         isSelected={effectiveSelectedId === conv.id}
                                         onClick={() => setSelectedConversationId(conv.id)}
+                                        channelType={(conv as any).channel?.type}
                                     />
                                 );
                             })
@@ -566,10 +648,18 @@ export default function ConversationsPage() {
 
                 {/* Chat Area - Middle Column */}
                 {effectiveSelectedId && currentConversation ? (
-                    <div className="flex-1 flex flex-col">
+                    <div className={`flex-1 flex flex-col ${!effectiveSelectedId ? 'hidden md:flex' : 'flex'}`}>
                         {/* Chat Header */}
                         <div className="p-4 border-b border-border bg-background-secondary flex items-center justify-between">
                             <div className="flex items-center gap-3">
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="md:hidden -ml-2 px-2" 
+                                    onClick={() => setSelectedConversationId(null)}
+                                >
+                                    <ArrowLeft className="h-5 w-5" />
+                                </Button>
                                 <div>
                                     <h3 className="font-semibold text-neutral-900">{currentConversation.contactName || currentConversation.lead?.name || currentConversation.contactIdentifier}</h3>
                                     <p className="text-sm text-neutral-700">{currentConversation.contactIdentifier || currentConversation.lead?.email || currentConversation.lead?.phone}</p>
@@ -590,6 +680,11 @@ export default function ConversationsPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
+                                {currentConversation.lead?.source && (
+                                    <Badge variant="default" className="capitalize bg-blue-100 text-blue-800 hover:bg-blue-200 border-0">
+                                        {currentConversation.lead.source.replace(/_/g, ' ')}
+                                    </Badge>
+                                )}
                                 <Button
                                     size="sm"
                                     variant="outline"
@@ -601,7 +696,7 @@ export default function ConversationsPage() {
                                 <Badge variant={currentConversation.status === 'active' ? 'success' : 'default'}>
                                     {currentConversation.status}
                                 </Badge>
-                                <Button size="sm" variant="secondary" onClick={handleAssignConversation}>
+                                <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={handleAssignConversation}>
                                     Assumir
                                 </Button>
                                 <button className="p-2 hover:bg-surface rounded-md transition-colors">
@@ -611,7 +706,7 @@ export default function ConversationsPage() {
                         </div>
 
                         {/* Messages */}
-                        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4 bg-white">
+                        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4 bg-[#efeae2]">
                             {messages && messages.length > 0 ? (
                                 messages.map((message) => (
                                     <MessageBubble
@@ -639,7 +734,7 @@ export default function ConversationsPage() {
                                 onChange={handleFileUpload}
                                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                             />
-                            <div className="flex items-end gap-2">
+                            <div className="flex items-center gap-2">
                                 <div className="flex-1">
                                     <textarea
                                         ref={messageInputRef}
@@ -652,7 +747,7 @@ export default function ConversationsPage() {
                                             }
                                         }}
                                         placeholder="Digite sua mensagem..."
-                                        className="input resize-none"
+                                        className="w-full resize-none bg-white text-neutral-900 border border-neutral-300 rounded-lg px-4 py-3 focus:outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884] placeholder:text-neutral-400 min-h-[44px] max-h-32 overflow-y-auto"
                                         rows={1}
                                         disabled={createMessage.isPending}
                                         autoFocus
@@ -674,7 +769,7 @@ export default function ConversationsPage() {
                                 >
                                     {isRecording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-5 w-5" />}
                                 </button>
-                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording}>
+                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording} className="bg-[#00a884] hover:bg-[#008f6f] text-white">
                                     <Send className="h-4 w-4" />
                                 </Button>
                             </div>
@@ -688,7 +783,7 @@ export default function ConversationsPage() {
 
                 {/* Lead Details - Right Column */}
                 {selectedConversationId && currentConversation && (
-                    <div className="w-80 border-l border-border bg-background-secondary p-6 overflow-y-auto scrollbar-thin">
+                    <div className="w-80 border-l border-primary-500/20 bg-white p-6 overflow-y-auto scrollbar-thin text-neutral-900">
                         <div className="space-y-6">
                             <div className="space-y-4">
                                 <div className="flex items-start justify-between">
@@ -697,7 +792,7 @@ export default function ConversationsPage() {
                                             {currentConversation.lead?.name || currentConversation.contactName || currentConversation.contactIdentifier}
                                         </h3>
                                         {(currentConversation.lead?.company || currentConversation.lead?.position) && (
-                                            <p className="text-neutral-700 mt-1">
+                                            <p className="text-neutral-600 mt-1">
                                                 {currentConversation.lead?.company} {currentConversation.lead?.position && `• ${currentConversation.lead?.position}`}
                                             </p>
                                         )}
@@ -718,8 +813,8 @@ export default function ConversationsPage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {(currentConversation.lead?.email || currentConversation.contactIdentifier?.includes('@')) && (
                                         <div>
-                                            <p className="text-sm text-text-tertiary mb-1">Email</p>
-                                            <p className="text-sm flex items-center gap-2">
+                                            <p className="text-sm text-neutral-500 mb-1">Email</p>
+                                            <p className="text-sm flex items-center gap-2 text-neutral-900">
                                                 <Mail className="h-4 w-4" />
                                                 {currentConversation.lead?.email || currentConversation.contactIdentifier}
                                             </p>
@@ -727,8 +822,8 @@ export default function ConversationsPage() {
                                     )}
                                     {(currentConversation.lead?.phone || (currentConversation.contactIdentifier && !currentConversation.contactIdentifier.includes('@'))) && (
                                         <div>
-                                            <p className="text-sm text-text-tertiary mb-1">Telefone</p>
-                                            <p className="text-sm flex items-center gap-2">
+                                            <p className="text-sm text-neutral-500 mb-1">Telefone</p>
+                                            <p className="text-sm flex items-center gap-2 text-neutral-900">
                                                 <Phone className="h-4 w-4" />
                                                 {currentConversation.lead?.phone || currentConversation.contactIdentifier}
                                             </p>
@@ -736,8 +831,8 @@ export default function ConversationsPage() {
                                     )}
                                     {currentConversation.lead?.company && (
                                         <div>
-                                            <p className="text-sm text-text-tertiary mb-1">Empresa</p>
-                                            <p className="text-sm flex items-center gap-2">
+                                            <p className="text-sm text-neutral-500 mb-1">Empresa</p>
+                                            <p className="text-sm flex items-center gap-2 text-neutral-900">
                                                 <Building className="h-4 w-4" />
                                                 {currentConversation.lead.company}
                                             </p>
@@ -745,20 +840,20 @@ export default function ConversationsPage() {
                                     )}
                                     {currentConversation.lead?.source && (
                                         <div>
-                                            <p className="text-sm text-text-tertiary mb-1">Origem</p>
+                                            <p className="text-sm text-neutral-500 mb-1">Origem</p>
                                             <Badge variant="default">{currentConversation.lead.source}</Badge>
                                         </div>
                                     )}
                                 </div>
                                 {currentConversation.lead?.interest && (
                                     <div>
-                                        <p className="text-sm text-text-tertiary mb-2">Interesse</p>
+                                        <p className="text-sm text-neutral-500 mb-2">Interesse</p>
                                         <p className="text-sm">{currentConversation.lead.interest}</p>
                                     </div>
                                 )}
                                 <div>
-                                    <p className="text-sm text-text-tertiary mb-1">Última mensagem</p>
-                                    <p className="text-sm">
+                                    <p className="text-sm text-neutral-500 mb-1">Última mensagem</p>
+                                    <p className="text-sm text-neutral-900">
                                         {formatDistanceToNow(new Date(currentConversation.lastMessageAt), {
                                             addSuffix: true,
                                             locale: ptBR,
@@ -852,7 +947,10 @@ function LeadDetailsModalContent({ leadId, onClose }: { leadId: string; onClose:
                         </p>
                     )}
                 </div>
-                <button onClick={onClose} className="text-neutral-500 hover:text-neutral-800">
+                <button 
+                    onClick={onClose} 
+                    className="p-2 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                >
                     <X className="h-6 w-6" />
                 </button>
             </div>
@@ -1013,7 +1111,7 @@ function Comments({ leadId }: { leadId: string }) {
                     onKeyDown={handleKeyDown}
                     className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" 
                 />
-                <Button size="sm" className="h-12 px-4 text-sm" onClick={handleAdd} isLoading={addComment.isPending}>Comentar</Button>
+                <Button size="sm" className="h-12 px-4 text-sm bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={handleAdd} isLoading={addComment.isPending}>Comentar</Button>
             </div>
         </div>
     );
@@ -1039,7 +1137,7 @@ function OutcomeButton({ lead, onClose }: { lead: import('@/types/api').Lead; on
     };
     return (
         <>
-            <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+            <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={() => setOpen(true)}>
                 Definir Resultado
             </Button>
             {open && (
@@ -1048,13 +1146,13 @@ function OutcomeButton({ lead, onClose }: { lead: import('@/types/api').Lead; on
                         <div className="p-6 space-y-4">
                             <h3 className="text-xl font-semibold text-neutral-900">Resultado do Lead</h3>
                             <div className="grid grid-cols-2 gap-2">
-                                <Button size="sm" variant={status === 'Contrato fechado' ? 'primary' : 'secondary'} onClick={() => setStatus('Contrato fechado')}>Venda Fechada</Button>
-                                <Button size="sm" variant={status === 'Em Qualificação' ? 'primary' : 'secondary'} onClick={() => setStatus('Em Qualificação')}>Sem Interesse</Button>
+                                <Button size="sm" className={status === 'Contrato fechado' ? 'bg-[#00a884] hover:bg-[#008f6f] text-white' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'} onClick={() => setStatus('Contrato fechado')}>Venda Fechada</Button>
+                                <Button size="sm" className={status === 'Em Qualificação' ? 'bg-[#00a884] hover:bg-[#008f6f] text-white' : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'} onClick={() => setStatus('Em Qualificação')}>Sem Interesse</Button>
                             </div>
                             <Input label="Valor da Venda (R$)" value={value} onChange={(e) => setValue(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
                             <Input label="Detalhes" value={reason} onChange={(e) => setReason(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
                             <div className="flex gap-2 pt-2">
-                                <Button size="sm" onClick={handleSave} isLoading={updateLead.isPending}>Salvar</Button>
+                                <Button size="sm" onClick={handleSave} isLoading={updateLead.isPending} className="bg-[#00a884] hover:bg-[#008f6f] text-white">Salvar</Button>
                                 <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
                             </div>
                         </div>
@@ -1098,7 +1196,7 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
     };
     return (
         <>
-            <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>Editar</Button>
+            <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={() => setOpen(true)}>Editar</Button>
             {open && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1000]" onClick={() => setOpen(false)}>
                     <Card className="w-full max-w-2xl max-h-[80vh] overflow-y-auto m-4 bg-white text-neutral-900 shadow-2xl border border-primary-500/20" onClick={(e) => e.stopPropagation()}>
@@ -1157,7 +1255,7 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
                                 </div>
                             </div>
                             <div className="flex gap-2 pt-2">
-                                <Button size="sm" onClick={handleSave} isLoading={updateLead.isPending}>Salvar</Button>
+                                <Button size="sm" onClick={handleSave} isLoading={updateLead.isPending} className="bg-[#00a884] hover:bg-[#008f6f] text-white">Salvar</Button>
                                 <Button size="sm" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
                             </div>
                         </div>
@@ -1234,7 +1332,7 @@ function DelegateLeadButton({ lead, currentUserRole, onDelegated }: { lead: impo
 
     return (
         <>
-            <Button size="sm" variant="secondary" className="w-full" onClick={handleOpen} disabled={!canDelegate}>Delegar</Button>
+            <Button size="sm" className="w-full bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={handleOpen} disabled={!canDelegate}>Delegar</Button>
             {open && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1000]" onClick={() => setOpen(false)}>
                     <Card className="w-full max-w-lg max-h-[80vh] overflow-y-auto scrollbar-thin m-4 bg-white text-neutral-900 shadow-2xl border border-primary-500/20" onClick={(e) => e.stopPropagation()}>
@@ -1274,7 +1372,7 @@ function DelegateLeadButton({ lead, currentUserRole, onDelegated }: { lead: impo
                                 </div>
                             )}
                             <div className="flex gap-2 pt-2">
-                                <Button size="sm" className="h-12 px-5 text-sm" onClick={handleDelegate} isLoading={delegateLead.isPending}>Delegar</Button>
+                                <Button size="sm" className="h-12 px-5 text-sm bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={handleDelegate} isLoading={delegateLead.isPending}>Delegar</Button>
                                 <Button size="sm" variant="secondary" className="h-12 px-5 text-sm" onClick={() => setOpen(false)}>Cancelar</Button>
                             </div>
                         </div>

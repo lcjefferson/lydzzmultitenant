@@ -107,17 +107,17 @@ export default function AnalyticsPage() {
 
             <div className="print-only px-6 pt-6">
                 <div className="flex items-baseline justify-between gap-6">
-                    <h1 className="text-xl font-bold text-neutral-900">Analytics</h1>
-                    <p className="text-xs text-neutral-700">{new Date().toLocaleString('pt-BR')}</p>
+                    <h1 className="text-xl font-bold text-foreground">Analytics</h1>
+                    <p className="text-xs text-muted-foreground">{new Date().toLocaleString('pt-BR')}</p>
                 </div>
-                <p className="text-sm text-neutral-700 mt-1">Análise detalhada de performance</p>
+                <p className="text-sm text-muted-foreground mt-1">Análise detalhada de performance</p>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                 {/* KPIs */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
                     {kpis.map((kpi) => (
-                        <Card key={kpi.label} className="p-6 bg-white">
+                        <Card key={kpi.label} className="p-4 md:p-6 bg-white">
                             <div className="flex items-center justify-between mb-2">
                                 <kpi.icon className="h-5 w-5 text-accent-primary" />
                                 <span className="text-sm text-success">&nbsp;</span>
@@ -129,21 +129,21 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Charts */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-neutral-900">Conversas por Status</CardTitle>
+                            <CardTitle className="text-card-foreground">Conversas por Status</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
                                 {(convStats?.byStatus ?? []).map((s) => (
                                     <div key={s.status} className="flex items-center justify-between">
-                                        <span className="text-sm capitalize text-neutral-900">{s.status}</span>
-                                        <span className="text-sm font-medium text-neutral-900">{s._count.id}</span>
+                                        <span className="text-sm capitalize text-foreground">{s.status}</span>
+                                        <span className="text-sm font-medium text-foreground">{s._count.id}</span>
                                     </div>
                                 ))}
                                 {(!convStats || (convStats.byStatus?.length ?? 0) === 0) && (
-                                    <div className="h-32 flex items-center justify-center text-neutral-700">Sem dados</div>
+                                    <div className="h-32 flex items-center justify-center text-muted-foreground">Sem dados</div>
                                 )}
                             </div>
                         </CardContent>
@@ -151,18 +151,18 @@ export default function AnalyticsPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-neutral-900">Leads por Temperatura</CardTitle>
+                            <CardTitle className="text-card-foreground">Leads por Temperatura</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-2">
                                 {(leadStats?.byTemperature ?? []).map((t) => (
                                     <div key={t.temperature} className="flex items-center justify-between">
-                                        <span className="text-sm capitalize text-neutral-900">{t.temperature}</span>
-                                        <span className="text-sm font-medium text-neutral-900">{t._count.id}</span>
+                                        <span className="text-sm capitalize text-foreground">{t.temperature}</span>
+                                        <span className="text-sm font-medium text-foreground">{t._count.id}</span>
                                     </div>
                                 ))}
                                 {(!leadStats || (leadStats.byTemperature?.length ?? 0) === 0) && (
-                                    <div className="h-32 flex items-center justify-center text-neutral-700">Sem dados</div>
+                                    <div className="h-32 flex items-center justify-center text-muted-foreground">Sem dados</div>
                                 )}
                             </div>
                         </CardContent>
@@ -172,11 +172,11 @@ export default function AnalyticsPage() {
                 {/* Relatórios */}
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-neutral-900">Contratos Fechados</CardTitle>
+                        <CardTitle className="text-card-foreground">Contratos Fechados</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {(!contracts || contracts.length === 0) ? (
-                            <div className="h-32 flex items-center justify-center text-neutral-700">Sem dados</div>
+                            <div className="h-32 flex items-center justify-center text-muted-foreground">Sem dados</div>
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex gap-2">
@@ -242,17 +242,17 @@ export default function AnalyticsPage() {
                                     <table className="w-full">
                                         <thead>
                                             <tr className="border-b border-border">
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Lead</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Consultor</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Atualizado</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Lead</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Consultor</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Atualizado</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {(contracts || []).map((c) => (
                                                 <tr key={c.id} className="border-b border-border">
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.name}</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.assignedTo?.name || '-'}</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{new Date(c.updatedAt as unknown as string).toLocaleString()}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.name}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.assignedTo?.name || '-'}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{new Date(c.updatedAt as unknown as string).toLocaleString()}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -265,11 +265,11 @@ export default function AnalyticsPage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="text-neutral-900">Relatório por Consultor</CardTitle>
+                        <CardTitle className="text-card-foreground">Relatório por Consultor</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {(!consultants || consultants.length === 0) ? (
-                            <div className="h-32 flex items-center justify-center text-neutral-700">Sem dados</div>
+                            <div className="h-32 flex items-center justify-center text-muted-foreground">Sem dados</div>
                         ) : (
                             <div className="space-y-3">
                                 <div className="flex gap-2">
@@ -342,23 +342,23 @@ export default function AnalyticsPage() {
                                     <table className="w-full">
                                         <thead>
                                             <tr className="border-b border-border">
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Consultor</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Fechados</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Ativos</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Total</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Conversão</th>
-                                                <th className="text-left py-2 px-4 text-sm text-neutral-900">Reuniões Agendadas</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Consultor</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Fechados</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Ativos</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Total</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Conversão</th>
+                                                <th className="text-left py-2 px-4 text-sm text-foreground">Reuniões Agendadas</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {(consultants || []).map((c) => (
                                                 <tr key={c.userId} className="border-b border-border">
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.name}</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.closed}</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.active}</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.total}</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.conversionRate}%</td>
-                                                    <td className="py-2 px-4 text-sm text-neutral-900">{c.meetings}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.name}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.closed}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.active}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.total}</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.conversionRate}%</td>
+                                                    <td className="py-2 px-4 text-sm text-foreground">{c.meetings}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

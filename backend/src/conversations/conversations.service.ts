@@ -9,6 +9,10 @@ export class ConversationsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateConversationDto, organizationId: string) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: dto.channelId },
+    });
+
     const existingLead = await this.prisma.lead.findFirst({
       where: {
         organizationId,
@@ -24,7 +28,7 @@ export class ConversationsService {
           phone: dto.contactIdentifier,
           status: 'Lead Novo',
           temperature: 'cold',
-          source: 'conversation',
+          source: channel?.type || 'conversation',
           organizationId,
         },
       }));
@@ -69,6 +73,11 @@ export class ConversationsService {
           take: 1,
         },
         lead: true,
+        channel: {
+          select: {
+            type: true,
+          },
+        },
       },
       orderBy: { lastMessageAt: 'desc' },
     });
@@ -85,7 +94,7 @@ export class ConversationsService {
         assignedTo: true,
         lead: true,
         channel: true,
-      },
+      } as any,
     });
 
     if (!conversation || conversation.organizationId !== organizationId) {

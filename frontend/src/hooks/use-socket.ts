@@ -6,23 +6,36 @@ export function useSocket() {
     const [isConnected, setIsConnected] = useState(Boolean(socketService.getSocket()?.connected));
 
     useEffect(() => {
-        const token = api.getToken?.() || localStorage.getItem('accessToken');
+        try {
+            const token = api.getToken?.() || localStorage.getItem('accessToken');
 
-        if (token) {
-            const socket = socketService.connect(token);
+            if (token) {
+                const socket = socketService.connect(token);
 
-            const handleConnect = () => setIsConnected(true);
-            const handleDisconnect = () => setIsConnected(false);
+                const handleConnect = () => setIsConnected(true);
+                const handleDisconnect = () => setIsConnected(false);
+                const handleError = (err: any) => {
+                    console.error('Socket connection error:', err);
+                    setIsConnected(false);
+                };
 
-            socket.on('connect', handleConnect);
-            socket.on('disconnect', handleDisconnect);
+                socket.on('connect', handleConnect);
+                socket.on('disconnect', handleDisconnect);
+                socket.on('connect_error', handleError);
 
-            // initial connection state is derived from socketService; updates via events
+                // initial connection state is derived from socketService; updates via events
+                if (socket.connected) {
+                    setIsConnected(true);
+                }
 
-            return () => {
-                socket.off('connect', handleConnect);
-                socket.off('disconnect', handleDisconnect);
-            };
+                return () => {
+                    socket.off('connect', handleConnect);
+                    socket.off('disconnect', handleDisconnect);
+                    socket.off('connect_error', handleError);
+                };
+            }
+        } catch (error) {
+            console.error('Error in useSocket effect:', error);
         }
     }, []);
 

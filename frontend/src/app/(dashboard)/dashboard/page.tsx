@@ -89,9 +89,9 @@ export default function DashboardPage() {
                 }
             />
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 md:p-8 space-y-6 md:space-y-8">
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
                     {stats.map((stat) => (
                         <StatCard key={stat.title} {...stat} />
                     ))}
@@ -159,8 +159,8 @@ export default function DashboardPage() {
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm text-neutral-800">Convertidos</span>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-48 h-2 bg-neutral-200 rounded-full overflow-hidden">
+                                        <div className="flex items-center gap-2 flex-1 justify-end">
+                                            <div className="w-24 md:w-48 h-2 bg-neutral-200 rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full bg-success"
                                                     style={{
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                                                     }}
                                                 />
                                             </div>
-                                            <span className="text-sm font-medium w-12 text-right text-neutral-900">{convertedLeads}</span>
+                                            <span className="text-sm font-medium w-8 md:w-12 text-right text-neutral-900">{convertedLeads}</span>
                                         </div>
                                     </div>
                                 </div>

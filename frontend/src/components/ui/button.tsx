@@ -10,14 +10,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ({ className, variant = 'primary', size = 'md', isLoading, children, disabled, ...props }, ref) => {
-        const baseStyles = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-primary disabled:opacity-50 disabled:cursor-not-allowed';
+        const baseStyles = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed';
 
         const variants = {
-            primary: 'bg-gradient-primary text-white shadow-glow hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(99,102,241,0.4)] focus:ring-accent-primary',
-            secondary: 'bg-white text-text-primary border border-neutral-200 shadow-sm hover:bg-neutral-50 focus:ring-neutral-200',
-            ghost: 'bg-transparent text-text-secondary hover:bg-neutral-100 focus:ring-neutral-200',
-            danger: 'bg-error text-white hover:bg-error/90 focus:ring-error',
-            outline: 'bg-transparent border border-neutral-300 text-text-secondary hover:bg-neutral-50 focus:ring-neutral-300',
+            primary: 'bg-gradient-primary text-white shadow-neon hover:shadow-neon-strong hover:-translate-y-0.5 border-0',
+            secondary: 'bg-secondary text-secondary-foreground border border-white/10 hover:bg-secondary/80 focus:ring-secondary',
+            ghost: 'bg-transparent text-muted-foreground hover:bg-white/5 hover:text-white focus:ring-accent',
+            danger: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 focus:ring-destructive shadow-lg shadow-destructive/20',
+            outline: 'bg-transparent border border-white/20 text-foreground hover:bg-white/5 hover:border-white/40 focus:ring-accent',
         };
 
         const sizes = {

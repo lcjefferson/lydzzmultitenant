@@ -35,7 +35,7 @@ export default function ChannelsPage() {
     const [channelToDelete, setChannelToDelete] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         name: '',
-        type: 'whatsapp' as 'whatsapp' | 'instagram',
+        type: 'whatsapp' as 'whatsapp' | 'instagram' | 'facebook_leads',
         provider: 'whatsapp-official' as 'whatsapp-official' | 'uazapi',
         identifier: '',
         config: {},
@@ -118,14 +118,14 @@ export default function ChannelsPage() {
                 title="Canais"
                 description="Gerencie seus canais de comunicação"
                 actions={
-                    <Button onClick={() => setShowCreateModal(true)} className="text-gray-900 font-semibold">
+                    <Button onClick={() => setShowCreateModal(true)} className="text-white font-semibold">
                         <Plus className="h-4 w-4 mr-2" />
                         Novo Canal
                     </Button>
                 }
             />
 
-            <div className="p-6">
+            <div className="p-4 md:p-6">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="text-center">
@@ -134,7 +134,7 @@ export default function ChannelsPage() {
                         </div>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                         {channels && channels.length > 0 ? (
                             channels.map((channel) => {
                                 const Icon = channelIcons[channel.type as keyof typeof channelIcons] || MessageCircle;
@@ -147,8 +147,8 @@ export default function ChannelsPage() {
                                                     <Icon className="h-6 w-6 text-white" />
                                                 </div>
                                                 <div>
-                                                    <h3 className="font-semibold text-neutral-900">{channel.name}</h3>
-                                                    <p className="text-sm text-text-secondary capitalize">{channel.type}</p>
+                                                    <h3 className="font-semibold text-white">{channel.name}</h3>
+                                                    <p className="text-sm text-gray-200 capitalize">{channel.type}</p>
                                                 </div>
                                             </div>
                                             {channel.status === 'active' ? (
@@ -179,9 +179,11 @@ export default function ChannelsPage() {
                                                         const inst = (cfg.instanceId as string) || '';
                                                         const uTok = (cfg.token as string) || '';
                                                         const uWebhook = (cfg.webhookUrl as string) || '';
+                                                        const uServer = (cfg.serverUrl as string) || '';
                                                         setUazInstanceId(inst);
                                                         setUazToken(uTok);
                                                         setUazWebhookUrl(uWebhook);
+                                                        setUazServerUrl(uServer);
                                                     }
                                                 }}
                                             >
@@ -204,15 +206,15 @@ export default function ChannelsPage() {
 
                         {/* Create New Card */}
                         <Card
-                            className="p-6 h-full min-h-[250px] flex flex-col items-center justify-center gap-4 hover:border-accent-primary cursor-pointer transition-all"
+                            className="p-6 h-full min-h-[250px] flex flex-col items-center justify-center gap-4 hover:border-accent-primary cursor-pointer transition-all bg-slate-900 text-white border-slate-800"
                             onClick={() => setShowCreateModal(true)}
                         >
-                            <div className="h-16 w-16 rounded-full bg-surface flex items-center justify-center">
+                            <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center">
                                 <Plus className="h-8 w-8 text-accent-primary" />
                             </div>
                             <div className="text-center">
-                                <h3 className="font-semibold mb-1 text-neutral-900">Adicionar Canal</h3>
-                                <p className="text-sm text-text-secondary">
+                                <h3 className="font-semibold mb-1 text-white">Adicionar Canal</h3>
+                                <p className="text-sm text-gray-400">
                                     Conecte um novo canal de comunicação
                                 </p>
                             </div>
@@ -228,15 +230,16 @@ export default function ChannelsPage() {
                     onClick={() => setShowCreateModal(false)}
                 >
                     <Card
-                        className="w-full max-w-md m-4 bg-white text-neutral-900"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="p-6">
-                                <div className="flex items-start justify-between mb-6">
-                                    <h2 className="text-2xl font-bold text-neutral-900">Novo Canal</h2>
-                                    <button
-                                        onClick={() => setShowCreateModal(false)}
-                                        className="text-text-secondary hover:text-neutral-900"
+                        className="w-full max-w-md m-4 max-h-[90vh] overflow-y-auto bg-white text-neutral-900 shadow-2xl border border-primary-500/20"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
+                    >
+                        <div className="p-6">
+                            <div className="flex items-start justify-between mb-6">
+                                <h2 className="text-2xl font-bold text-neutral-900">Novo Canal</h2>
+                                <button
+                                    onClick={() => setShowCreateModal(false)}
+                                    className="text-neutral-500 hover:text-neutral-800"
                                 >
                                     <X className="h-6 w-6" />
                                 </button>
@@ -249,6 +252,7 @@ export default function ChannelsPage() {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     required
                                     placeholder="Ex: WhatsApp Principal"
+                                    className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                 />
 
                                 <Input
@@ -257,31 +261,61 @@ export default function ChannelsPage() {
                                     onChange={(e) => setFormData({ ...formData, identifier: e.target.value })}
                                     required
                                     placeholder="Ex: +5511999999999"
+                                    className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                 />
 
                                 <div>
-                                    <label className="block text-sm font-medium mb-2">Tipo de Canal</label>
+                                    <label className="block text-sm font-medium text-neutral-900 mb-2">Tipo de Canal</label>
                                     <select
                                         value={formData.type}
-                                        onChange={(e) => setFormData({ ...formData, type: e.target.value as 'whatsapp' | 'instagram' })}
-                                        className="input"
+                                        onChange={(e) => setFormData({ ...formData, type: e.target.value as 'whatsapp' | 'instagram' | 'facebook_leads' })}
+                                        className="input bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                     >
                                         <option value="whatsapp">WhatsApp</option>
                                         <option value="instagram">Instagram</option>
+                                        <option value="facebook_leads">Facebook Leads</option>
                                     </select>
                                 </div>
                                 {formData.type === 'whatsapp' && (
                                     <div>
-                                        <label className="block text-sm font-medium mb-2">Provider</label>
+                                        <label className="block text-sm font-medium text-neutral-900 mb-2">Provider</label>
                                         <select
                                             value={formData.provider}
                                             onChange={(e) => setFormData({ ...formData, provider: e.target.value as 'whatsapp-official' | 'uazapi' })}
-                                            className="input"
+                                            className="input bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                         >
                                             <option value="whatsapp-official">WhatsApp Oficial</option>
                                             <option value="uazapi">Uazapi</option>
                                         </select>
                                     </div>
+                                )}
+
+                                {formData.type === 'facebook_leads' && (
+                                    <>
+                                        <Input
+                                            label="Page ID"
+                                            value={(formData.config as any).pageId || ''}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                config: { ...formData.config, pageId: e.target.value }
+                                            })}
+                                            required
+                                            placeholder="Ex: 123456789"
+                                            className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
+                                        />
+                                        <Input
+                                            label="Access Token"
+                                            value={(formData as any).accessToken || ''}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                accessToken: e.target.value
+                                            } as any)}
+                                            required
+                                            type="password"
+                                            placeholder="Page Access Token"
+                                            className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
+                                        />
+                                    </>
                                 )}
 
                                 {formData.type === 'whatsapp' && formData.provider === 'whatsapp-official' && (
@@ -295,6 +329,7 @@ export default function ChannelsPage() {
                                             })}
                                             required
                                             placeholder="Ex: 123456789012345"
+                                            className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                         />
                                         <Input
                                             label="Access Token"
@@ -310,6 +345,7 @@ export default function ChannelsPage() {
                                             required
                                             type="password"
                                             placeholder="Meta API Access Token"
+                                            className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                         />
                                     </>
                                 )}
@@ -338,7 +374,11 @@ export default function ChannelsPage() {
                     className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1100]"
                     onClick={() => setChannelToDelete(null)}
                 >
-                    <Card className="w-full max-w-md p-6 bg-white text-neutral-900" onClick={(e) => e.stopPropagation()}>
+                    <Card
+                        className="w-full max-w-md p-6 bg-white text-neutral-900"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
+                    >
                         <h2 className="text-xl font-bold mb-4 text-neutral-900">Confirmar Exclusão</h2>
                         <p className="mb-6">Tem certeza que deseja excluir este canal?</p>
                         <div className="flex gap-2 justify-end">
@@ -364,16 +404,17 @@ export default function ChannelsPage() {
                         <Card
                             className="w-full max-w-2xl m-4 max-h-[90vh] overflow-y-auto bg-white text-neutral-900"
                             onClick={(e) => e.stopPropagation()}
+                            style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
                         >
                             <div className="p-6">
                                 <div className="flex items-start justify-between mb-6">
                                     <div>
                                         <h2 className="text-2xl font-bold text-neutral-900">Configurar Canal</h2>
-                                        <p className="text-sm text-text-secondary mt-1">{channel.name}</p>
+                                        <p className="text-sm text-neutral-600 mt-1">{channel.name}</p>
                                     </div>
                                     <button
                                         onClick={() => setSelectedChannel(null)}
-                                        className="text-text-secondary hover:text-neutral-900"
+                                        className="text-neutral-500 hover:text-neutral-900"
                                     >
                                         <X className="h-6 w-6" />
                                     </button>
@@ -593,20 +634,21 @@ export default function ChannelsPage() {
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm font-medium mb-2">Instance ID</label>
-                                                    <Input
-                                                        placeholder="Ex: abc123"
-                                                        value={uazInstanceId}
-                                                        onChange={(e) => setUazInstanceId(e.target.value)}
-                                                    />
+                                                    <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                                                        {uazInstanceId || 'Será detectado automaticamente ao conectar'}
+                                                    </div>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-sm font-medium mb-2">Token</label>
+                                                    <label className="block text-sm font-medium mb-2">Instance Token</label>
                                                     <Input
                                                         type="password"
-                                                        placeholder="Token da instância"
+                                                        placeholder="Token da instância (Opcional se configurado no servidor)"
                                                         value={uazToken}
                                                         onChange={(e) => setUazToken(e.target.value)}
                                                     />
+                                                    <p className="text-xs text-text-tertiary mt-1">
+                                                        Token de autenticação da instância (Deixe vazio para usar a configuração global)
+                                                    </p>
                                                 </div>
                                                 <div className="flex gap-2 pt-2">
                                                     <Button

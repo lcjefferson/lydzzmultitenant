@@ -22,6 +22,35 @@ export class LeadsService {
     });
   }
 
+  async import(dtos: CreateLeadDto[], organizationId: string) {
+    // Filter out invalid entries
+    const validLeads = dtos.filter(
+      (dto) => dto.name || dto.email || dto.phone,
+    ).map((dto) => ({
+      name: dto.name || 'Sem Nome',
+      email: dto.email,
+      phone: dto.phone,
+      company: dto.company,
+      position: dto.position,
+      status: 'Lead Novo',
+      temperature: 'cold',
+      source: 'import',
+      organizationId,
+    }));
+
+    if (validLeads.length === 0) {
+      return { count: 0 };
+    }
+
+    // Using createMany for better performance
+    const result = await this.prisma.lead.createMany({
+      data: validLeads as any,
+      skipDuplicates: true, // Skip if unique constraint (e.g. email/phone) fails
+    });
+
+    return result;
+  }
+
   async findAll(
     filters?: {
       search?: string;

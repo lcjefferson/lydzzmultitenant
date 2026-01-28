@@ -104,7 +104,7 @@ export default function WebhooksPage() {
                 }
             />
 
-            <div className="p-6 space-y-6">
+            <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                 {isLoading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="text-center">
@@ -114,15 +114,15 @@ export default function WebhooksPage() {
                     </div>
                 ) : (
                     webhooks?.map((webhook) => (
-                        <Card key={webhook.id} className="p-6">
+                        <Card key={webhook.id} className="p-4 md:p-6 bg-slate-900 text-white border-slate-800">
                             <div className="flex items-start justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="h-12 w-12 rounded-lg bg-gradient-primary flex items-center justify-center">
                                         <WebhookIcon className="h-6 w-6 text-white" />
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold">{webhook.name}</h3>
-                                        <p className="text-sm text-text-secondary">{webhook.url}</p>
+                                        <h3 className="font-semibold text-white">{webhook.name}</h3>
+                                        <p className="text-sm text-gray-300">{webhook.url}</p>
                                     </div>
                                 </div>
                                 {webhook.isActive ? (
@@ -134,7 +134,7 @@ export default function WebhooksPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 <div>
-                                    <p className="text-sm text-text-tertiary mb-1">Eventos</p>
+                                    <p className="text-sm text-gray-400 mb-1">Eventos</p>
                                     <div className="flex flex-wrap gap-1">
                                         {webhook.events.map((event) => (
                                             <Badge key={event} variant="default" className="text-xs">
@@ -144,11 +144,11 @@ export default function WebhooksPage() {
                                     </div>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-text-tertiary mb-1">Organização</p>
-                                    <p className="text-sm font-medium">{webhook.organizationId}</p>
+                                    <p className="text-sm text-gray-400 mb-1">Organização</p>
+                                    <p className="text-sm font-medium text-white">{webhook.organizationId}</p>
                                 </div>
                                 <div>
-                                    <p className="text-sm text-text-tertiary mb-1">Status</p>
+                                    <p className="text-sm text-gray-400 mb-1">Status</p>
                                     <Badge variant={webhook.isActive ? 'success' : 'default'}>
                                         {webhook.isActive ? 'Ativo' : 'Inativo'}
                                     </Badge>
@@ -188,8 +188,9 @@ export default function WebhooksPage() {
                     onClick={closeModal}
                 >
                     <Card
-                        className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto"
+                        className="w-full max-w-lg m-4 max-h-[90vh] overflow-y-auto bg-white text-neutral-900 shadow-2xl border border-primary-500/20"
                         onClick={(e) => e.stopPropagation()}
+                        style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
                     >
                         <div className="p-6">
                             <div className="flex items-start justify-between mb-6">
@@ -198,7 +199,7 @@ export default function WebhooksPage() {
                                 </h2>
                                 <button
                                     onClick={closeModal}
-                                    className="text-text-secondary hover:text-text-primary"
+                                    className="text-neutral-500 hover:text-neutral-800"
                                 >
                                     <X className="h-6 w-6" />
                                 </button>
@@ -211,6 +212,7 @@ export default function WebhooksPage() {
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                     required
                                     placeholder="Ex: Integração CRM"
+                                    className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                 />
 
                                 <Input
@@ -219,6 +221,7 @@ export default function WebhooksPage() {
                                     onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                                     required
                                     placeholder="https://api.exemplo.com/webhook"
+                                    className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                 />
 
                                 <div>
@@ -231,7 +234,7 @@ export default function WebhooksPage() {
                                                     p-2 rounded-md border cursor-pointer text-sm transition-colors
                                                     ${formData.events.includes(event)
                                                         ? 'bg-primary-500/10 border-primary-600 text-primary-700'
-                                                        : 'border-border hover:border-text-secondary text-neutral-900'
+                                                        : 'border-neutral-200 hover:border-neutral-400 text-neutral-900'
                                                     }
                                                 `}
                                                 onClick={() => toggleEvent(event)}
@@ -247,7 +250,7 @@ export default function WebhooksPage() {
                                     <select
                                         value={formData.isActive ? 'active' : 'inactive'}
                                         onChange={(e) => setFormData({ ...formData, isActive: e.target.value === 'active' })}
-                                        className="input w-full"
+                                        className="input w-full bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                     >
                                         <option value="active">Ativo</option>
                                         <option value="inactive">Inativo</option>
@@ -283,8 +286,8 @@ export default function WebhooksPage() {
                     className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1000]"
                     onClick={() => setWebhookToDelete(null)}
                 >
-                    <Card className="w-full max-w-md p-6 bg-white text-neutral-900" onClick={(e) => e.stopPropagation()}>
-                        <h2 className="text-xl font-bold mb-4 text-neutral-900">Confirmar Exclusão</h2>
+                    <Card className="w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-xl font-bold mb-4">Confirmar Exclusão</h2>
                         <p className="mb-6">Tem certeza que deseja excluir este webhook? Esta ação não pode ser desfeita.</p>
                         <div className="flex gap-2 justify-end">
                             <Button variant="secondary" onClick={() => setWebhookToDelete(null)}>

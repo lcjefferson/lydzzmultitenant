@@ -24,7 +24,7 @@ model Organization {
   updatedAt DateTime @updatedAt
 
   // OpenAI Configuration
-  openaiApiKey      String?  @db.Text
+  openaiApiKey      String?
   openaiModel       String?  @default("gpt-4-turbo")
   openaiMaxTokens   Int?     @default(500)
   openaiTemperature Float?   @default(0.7)
@@ -76,13 +76,13 @@ model Agent {
   personality     String?
   tone            String?
   objective       String?
-  systemMessage   String   @db.Text
+  systemMessage   String
   model           String   @default("gpt-4-turbo")
   temperature     Float    @default(0.7)
   maxTokens       Int      @default(500)
   isActive        Boolean  @default(true)
   isPublished     Boolean  @default(false)
-  apiKeyEncrypted String?  @db.Text
+  apiKeyEncrypted String?
   customScripts   Json?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -294,7 +294,7 @@ model Webhook {
   id          String   @id @default(uuid())
   name        String
   url         String
-  events      String[] // lead.created, lead.qualified, conversation.new, etc.
+  events         String   // Comma separated events: message.new, lead.created, etc
   secret      String?
   isActive    Boolean  @default(true)
   retryCount  Int      @default(3)
@@ -336,7 +336,7 @@ model WebhookLog {
   response     Json?
   statusCode   Int?
   success      Boolean
-  errorMessage String?  @db.Text
+  errorMessage String?
   executedAt   DateTime @default(now())
 
   webhookId String

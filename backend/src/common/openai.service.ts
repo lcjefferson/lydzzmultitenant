@@ -83,12 +83,17 @@ export class OpenAIService {
       const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
       // System Message (from Agent or Default)
-      const systemMessage =
+      let systemMessage =
         agent?.systemMessage || 'You are a helpful assistant.';
+
+      // Reinforce system message adherence
+      if (agent?.systemMessage) {
+        systemMessage = `${agent.systemMessage}\n\nIMPORTANT: You must strictly follow the above persona and instructions in all your responses. Do not break character.`;
+      }
       
-      this.logger.debug(`[OpenAIService] Generating response for Conversation ${conversationId}`);
-      this.logger.debug(`[OpenAIService] Agent: ${agent?.name || 'None'} (${agent?.id || 'No ID'})`);
-      this.logger.debug(`[OpenAIService] System Message Preview: ${systemMessage.substring(0, 200)}...`);
+      this.logger.log(`[OpenAIService] Generating response for Conversation ${conversationId}`);
+      this.logger.log(`[OpenAIService] Agent: ${agent?.name || 'None'} (${agent?.id || 'No ID'})`);
+      this.logger.log(`[OpenAIService] System Message used: ${systemMessage}`);
 
       messages.push({ role: 'system', content: systemMessage });
 
@@ -128,6 +133,9 @@ export class OpenAIService {
       const temperature =
         agent?.temperature ?? organization.openaiTemperature ?? 0.7;
       const maxTokens = agent?.maxTokens ?? organization.openaiMaxTokens ?? 500;
+
+      this.logger.log(`[OpenAIService] Using Model: ${model}, Temp: ${temperature}`);
+      this.logger.log(`[OpenAIService] Messages Payload: ${JSON.stringify(messages)}`);
 
       let responseText: string | null = null;
       try {

@@ -52,7 +52,7 @@ export default function UsersPage() {
   return (
     <div>
       <Header title="Usuários" description="Gerencie consultores e administradores" />
-      <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         <Card className="p-4">
           <h3 className="text-lg font-semibold mb-3">Lista</h3>
           <div className="space-y-2">
@@ -74,7 +74,7 @@ export default function UsersPage() {
           </div>
         </Card>
 
-        <Card className="p-4">
+        <Card className="p-4 bg-slate-900 text-white border-slate-800" style={{ "--foreground": "0 0% 100%" } as React.CSSProperties}>
           <h3 className="text-lg font-semibold mb-3">Adicionar Usuário</h3>
           {isAdmin ? (
             <div className="space-y-3">
@@ -89,7 +89,7 @@ export default function UsersPage() {
               <Button onClick={() => createUser.mutate(form)} isLoading={createUser.isPending}>Criar</Button>
             </div>
           ) : (
-            <p className="text-sm text-text-secondary">Apenas administradores podem criar usuários.</p>
+            <p className="text-sm text-gray-300">Apenas administradores podem criar usuários.</p>
           )}
         </Card>
       </div>
@@ -97,7 +97,7 @@ export default function UsersPage() {
       {/* Edit Modal */}
       {editingUser && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background border border-border rounded-lg p-6 w-full max-w-md shadow-lg">
+          <div className="bg-white text-neutral-900 border border-border rounded-lg p-6 w-full max-w-md shadow-lg" style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}>
             <h3 className="text-lg font-semibold mb-4">Editar Usuário</h3>
             <div className="space-y-3">
               <Input 
