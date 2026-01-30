@@ -7,26 +7,41 @@ import {
   UseGuards,
   Req,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { InternalService } from './internal.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
 
 @Controller('internal')
 export class InternalController {
+  private readonly logger = new Logger(InternalController.name);
+
   constructor(
     private readonly internalService: InternalService,
     private readonly configService: ConfigService,
   ) {}
 
   @Post('onboarding')
-  async createOrganizationWithAdmin(@Body() body: any) {
-    const masterKey = this.configService.get<string>('MASTER_SECRET_KEY');
-    if (!masterKey || body.masterKey !== masterKey) {
+  async createOrganizationWithAdmin(@Body() body: CreateOrganizationDto) {
+    const masterKeyConfig = this.configService.get<string>('MASTER_SECRET_KEY');
+    
+    if (!masterKeyConfig) {
+      this.logger.error('MASTER_SECRET_KEY is not configured in environment variables');
+      throw new UnauthorizedException('System configuration error');
+    }
+
+    const inputKey = body.masterKey?.trim();
+    const storedKey = masterKeyConfig.trim();
+
+    if (inputKey !== storedKey) {
+      this.logger.warn(`Invalid master key attempt`);
       throw new UnauthorizedException('Invalid master key');
     }
+
     return this.internalService.createOrganizationWithAdmin(body);
   }
 

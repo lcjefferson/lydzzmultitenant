@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { ConversationsGateway } from '../conversations/conversations.gateway';
@@ -6,46 +6,67 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class InternalService {
+  private readonly logger = new Logger(InternalService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateway: ConversationsGateway,
   ) {}
 
   async createOrganizationWithAdmin(data: any) {
-    // 1. Create Organization
-    const slug = data.orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const organization = await this.prisma.organization.create({
-      data: {
-        name: data.orgName,
-        slug: slug,
-        plan: 'starter',
-      },
-    });
+    try {
+      // 1. Create Organization
+      const slug = data.orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const organization = await this.prisma.organization.create({
+        data: {
+          name: data.orgName,
+          slug: slug,
+          plan: 'starter',
+        },
+      });
 
-    // 2. Create Admin User
-    const hashedPassword = await bcrypt.hash(data.userPassword, 10);
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.userEmail,
-        password: hashedPassword,
-        name: data.userName,
-        role: 'admin',
-        organizationId: organization.id,
-      },
-    });
+      // 2. Create Admin User
+      const hashedPassword = await bcrypt.hash(data.userPassword, 10);
+      const user = await this.prisma.user.create({
+        data: {
+          email: data.userEmail,
+          password: hashedPassword,
+          name: data.userName,
+          role: 'admin',
+          organizationId: organization.id,
+        },
+      });
 
-    // 3. Ensure Internal Channel exists (optional but good practice)
-    await this.ensureInternalChannel(organization.id);
+      // 3. Ensure Internal Channel exists (optional but good practice)
+      await this.ensureInternalChannel(organization.id);
 
-    return {
-      organization,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    };
+      return {
+        organization,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`Error creating organization/admin: ${error.message}`, error.stack);
+      
+      if (error.code === 'P2002') {
+        const target = error.meta?.target;
+        if (Array.isArray(target)) {
+          if (target.includes('slug')) {
+            throw new ConflictException(`Organization name generates a slug that already exists. Try a different name.`);
+          }
+          if (target.includes('email')) {
+            throw new ConflictException(`User email already exists: ${data.userEmail}`);
+          }
+        }
+        throw new ConflictException('Data conflict (duplicate entry)');
+      }
+      
+      throw new InternalServerErrorException('Failed to create organization/admin');
+    }
   }
 
   async ensureInternalChannel(organizationId: string) {
