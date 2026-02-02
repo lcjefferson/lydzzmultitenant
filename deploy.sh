@@ -26,11 +26,11 @@ fi
 
 # 1. Create directory on server
 echo -e "${YELLOW}Creating remote directory...${NC}"
-ssh $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"
+ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"
 
 # 2. Sync files
 echo -e "${YELLOW}Syncing files...${NC}"
-rsync -avz --delete \
+rsync -avz --delete -e "ssh -p $SERVER_PORT" \
     --exclude 'node_modules' \
     --exclude '.git' \
     --exclude '.next' \
@@ -119,7 +119,7 @@ ssh $SERVER_USER@$SERVER_HOST "
 
 # 4. Deploy with Docker Compose
 echo -e "${YELLOW}Building and starting containers...${NC}"
-ssh $SERVER_USER@$SERVER_HOST "cd $DEST_DIR && docker compose -f docker-compose.prod.yml up -d --build"
+ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "cd $DEST_DIR && docker compose -f docker-compose.prod.yml up -d --build"
 
 echo -e "${GREEN}=== Deployment Complete! ===${NC}"
 echo -e "Check status with: ssh $SERVER_USER@$SERVER_HOST 'cd $DEST_DIR && docker compose -f docker-compose.prod.yml ps'"
