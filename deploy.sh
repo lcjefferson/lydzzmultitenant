@@ -12,6 +12,18 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Starting Deployment to $SERVER_USER@$SERVER_HOST ===${NC}"
 
+# Check for git updates
+echo -e "${YELLOW}Checking for local git updates...${NC}"
+git pull origin main || echo -e "${YELLOW}Git pull failed or not a git repo. Using current local files.${NC}"
+
+# 0. Generate Build Info (Frontend)
+echo -e "${YELLOW}Generating build info...${NC}"
+if [ -d "frontend" ]; then
+    cd frontend
+    node generate-build-info.js
+    cd ..
+fi
+
 # 1. Create directory on server
 echo -e "${YELLOW}Creating remote directory...${NC}"
 ssh $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"

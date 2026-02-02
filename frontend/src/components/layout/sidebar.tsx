@@ -22,6 +22,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useConversations } from '@/hooks/api/use-conversations';
 import pkg from '../../../package.json';
+import buildInfo from '@/build-info.json';
 
 const navigation = [
     {
@@ -216,7 +217,11 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
                 </button>
                 {!collapsed && (
                     <div className="text-xs text-center text-text-tertiary mt-2">
-                        v{pkg.version}
+                        v{pkg.version} ({buildInfo.commitHash})
+                        <br />
+                        {buildInfo.buildDate !== 'Not built yet' 
+                            ? new Date(buildInfo.buildDate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) 
+                            : 'Dev Mode'}
                     </div>
                 )}
             </div>
