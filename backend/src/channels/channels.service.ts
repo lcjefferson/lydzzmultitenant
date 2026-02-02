@@ -16,6 +16,28 @@ export class ChannelsService {
     const provider = dto.provider ?? 'whatsapp-official';
     const baseConfig =
       typeof dto.config === 'object' && dto.config !== null ? dto.config : {};
+    
+    // Auto-fetch instanceId for Uazapi if not provided but connection details are present
+    if (dto.type === 'whatsapp' && provider === 'uazapi') {
+        const configObj = baseConfig as Record<string, any>;
+        const serverUrl = configObj.serverUrl || process.env.UAZAPI_API_URL;
+        const token = configObj.token || process.env.UAZAPI_INSTANCE_TOKEN;
+        
+        if (serverUrl && token && !configObj.instanceId) {
+            try {
+                const check = await this.uazapiService.checkConnection(token, serverUrl);
+                if (check.success && check.instanceId) {
+                    configObj.instanceId = check.instanceId;
+                    configObj.serverUrl = serverUrl; // Ensure persisted
+                    configObj.token = token; // Ensure persisted
+                }
+            } catch (error) {
+                // Log but don't block creation, maybe user will fix later
+                console.error('Failed to auto-fetch instanceId during creation:', error);
+            }
+        }
+    }
+
     const mergedConfig =
       dto.type === 'whatsapp' && provider === 'uazapi'
         ? {
@@ -33,7 +55,7 @@ export class ChannelsService {
         name: dto.name,
         identifier: dto.identifier,
         accessToken: dto.accessToken,
-        config: baseConfig,
+        config: mergedConfig,
         status: dto.status,
         organizationId,
       } as any,

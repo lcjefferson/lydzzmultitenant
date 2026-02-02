@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Query,
+  Headers as RequestHeaders,
   HttpCode,
   Logger,
 } from '@nestjs/common';
@@ -394,10 +395,13 @@ export class WebhooksController {
   // Uazapi Webhook (POST) - Receive messages
   @Post('uazapi')
   @HttpCode(200)
-  async handleUazapiWebhook(@Body() payload: any) {
+  async handleUazapiWebhook(@Body() payload: any, @RequestHeaders() headers: any) {
     try {
       this.logger.log('Incoming Uazapi webhook');
       this.logger.log(`Payload: ${JSON.stringify(payload, null, 2)}`);
+      if (headers) {
+          this.logger.log(`Headers: ${JSON.stringify(headers, null, 2)}`);
+      }
       
       const incomingMessage = this.uazapiService.parseIncomingMessage(payload);
       if (!incomingMessage) {
@@ -422,6 +426,12 @@ export class WebhooksController {
         include: { organization: true },
       });
       this.logger.log(`Found ${channels.length} channels (whatsapp/instagram/facebook)`);
+      
+      // Debug log for channels
+      channels.forEach(ch => {
+          const cfg = (ch as any).config || {};
+          this.logger.log(`Channel [${ch.id}]: Name=${ch.name}, Provider=${ch.provider}, InstanceId=${cfg.instanceId}`);
+      });
 
       let channel: any = null;
 
@@ -434,6 +444,29 @@ export class WebhooksController {
               : undefined;
           return cfg?.instanceId === incomingMessage.instanceId;
         });
+        
+        if (channel) {
+            this.logger.log(`Matched channel by InstanceId: ${channel.name} (${channel.id})`);
+        } else {
+            this.logger.warn(`No channel matched for InstanceId: ${incomingMessage.instanceId}`);
+        }
+      }
+
+      // 1.5 Try to match by Token in headers (Fallback if instanceId missing/mismatch)
+      if (!channel && headers) {
+          // Check for 'token' or 'apikey' or 'authorization' in headers
+          const headerToken = headers['token'] || headers['apikey'] || headers['authorization'];
+          
+          if (headerToken) {
+               channel = channels.find((ch) => {
+                  const cfg = typeof (ch as any).config === 'object' ? (ch as any).config as any : {};
+                  return cfg.token === headerToken || (cfg.token && `Bearer ${cfg.token}` === headerToken);
+              });
+              
+              if (channel) {
+                  this.logger.log(`Matched channel by Header Token: ${channel.name} (${channel.id})`);
+              }
+          }
       }
 
       // 2. Fallback: Find first Uazapi provider if no instanceId matched
