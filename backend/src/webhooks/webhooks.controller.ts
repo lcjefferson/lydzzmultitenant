@@ -244,10 +244,19 @@ export class WebhooksController {
         return { status: 'no_channel' };
       }
 
+      const phone = incomingMessage.from;
+      // Try to match phone with or without country code (BR only for now as main case)
+      const phoneWithoutCountryCode = phone.startsWith('55') && phone.length >= 12 ? phone.substring(2) : phone;
+      
       const existingLead = await this.prisma.lead.findFirst({
         where: {
           organizationId: channel.organization.id,
-          phone: incomingMessage.from,
+          OR: [
+             { phone: phone },
+             { phone: phoneWithoutCountryCode },
+             { phone: `+${phone}` },
+             { phone: `+${phoneWithoutCountryCode}` }
+          ]
         },
         include: { conversation: true } as any,
       });
@@ -447,13 +456,14 @@ export class WebhooksController {
             typeof (ch as any).config === 'object' && (ch as any).config
               ? ((ch as any).config as { instanceId?: string })
               : undefined;
-          return cfg?.instanceId === incomingMessage.instanceId;
+          // Case insensitive comparison
+          return cfg?.instanceId && incomingMessage.instanceId && cfg.instanceId.toLowerCase() === incomingMessage.instanceId.toLowerCase();
         });
         
         if (channel) {
             this.logger.log(`Matched channel by InstanceId: ${channel.name} (${channel.id})`);
         } else {
-            this.logger.warn(`No channel matched for InstanceId: ${incomingMessage.instanceId}`);
+            this.logger.warn(`No channel matched for InstanceId: ${incomingMessage.instanceId} (checked ${channels.length} channels)`);
         }
       }
 
@@ -502,10 +512,19 @@ export class WebhooksController {
         return { status: 'no_channel' };
       }
 
+      const phone = incomingMessage.from;
+      // Try to match phone with or without country code (BR only for now as main case)
+      const phoneWithoutCountryCode = phone.startsWith('55') && phone.length >= 12 ? phone.substring(2) : phone;
+
       const existingLead = await this.prisma.lead.findFirst({
         where: {
           organizationId: channel.organization.id,
-          phone: incomingMessage.from,
+          OR: [
+             { phone: phone },
+             { phone: phoneWithoutCountryCode },
+             { phone: `+${phone}` },
+             { phone: `+${phoneWithoutCountryCode}` }
+          ]
         },
         include: { conversation: true } as any,
       });
