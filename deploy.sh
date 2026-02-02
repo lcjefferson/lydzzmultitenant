@@ -46,7 +46,7 @@ ssh $SERVER_USER@$SERVER_HOST "
         chmod 600 /swapfile
         mkswap /swapfile
         swapon /swapfile
-        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
         echo 'Swap created successfully.'
     else
         echo 'Swapfile already exists.'
