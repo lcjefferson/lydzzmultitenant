@@ -21,10 +21,21 @@ try {
   }
 }
 
+let version = process.env.npm_package_version;
+if (!version) {
+  try {
+    const packageJsonPath = path.join(__dirname, 'package.json');
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    version = packageJson.version;
+  } catch (e) {
+    version = '0.0.0';
+  }
+}
+
 const buildInfo = {
   buildDate: new Date().toISOString(),
   commitHash: commitHash,
-  version: process.env.npm_package_version || '0.0.0'
+  version: version
 };
 
 fs.writeFileSync(buildInfoPath, JSON.stringify(buildInfo, null, 2));
