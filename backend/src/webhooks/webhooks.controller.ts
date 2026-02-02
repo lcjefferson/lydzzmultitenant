@@ -409,6 +409,11 @@ export class WebhooksController {
         return { status: 'ignored' };
       }
       
+      // Sanitize phone number (remove non-digits)
+      if (incomingMessage.from) {
+          incomingMessage.from = incomingMessage.from.replace(/\D/g, '');
+      }
+      
       if (incomingMessage.isGroup) {
           this.logger.log(`Ignoring group message from ${incomingMessage.from}`);
           return { status: 'ignored_group' };

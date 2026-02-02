@@ -164,16 +164,18 @@ export class MessagesService {
                 attachments = await this.processSyncedMedia(msg, 'document', token, serverUrl);
             }
 
-            await this.create({
-                conversationId: conversation.id,
-                content: content,
-                senderType: senderType,
-                type: type,
-                attachments,
-                skipAI: true,
-                metadata: {
-                    providerMessageId: providerId,
-                    synced: true
+            await this.prisma.message.create({
+                data: {
+                    conversation: { connect: { id: conversation.id } },
+                    content: content,
+                    senderType: senderType,
+                    type: type,
+                    attachments,
+                    metadata: {
+                        providerMessageId: providerId,
+                        synced: true
+                    },
+                    createdAt: messageTimestamp
                 }
             });
             importedCount++;

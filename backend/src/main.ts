@@ -40,8 +40,11 @@ async function bootstrap() {
   const port = process.env.PORT || 3001;
   await app.listen(port,'0.0.0.0');
 
-  console.log(`🚀 Server running on http://localhost:${port}`);
-  console.log(`📚 API available at http://localhost:${port}/api`);
+  const logger = new console.Console(process.stdout, process.stderr);
+  logger.log(`🚀 Server running on http://localhost:${port}`);
+  logger.log(`📚 API available at http://localhost:${port}/api`);
+  logger.log(`🕒 Startup Time: ${new Date().toISOString()}`);
+  logger.log(`📦 Backend Version Check: Ensure logs show this new message to confirm deployment.`);
 }
 
 void bootstrap();
