@@ -58,20 +58,61 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"
 # Removed exclusion of .next/dist to ensure clean state on server side, though we exclude them to save bandwidth usually.
 # Keeping exclusions but ensuring src/build-info.json and package.json are sent.
 echo -e "${YELLOW}Syncing files...${NC}"
-rsync -avz -I --delete -e "ssh -p $SERVER_PORT" \
-    --exclude 'node_modules' \
-    --exclude '.git' \
-    --exclude '.next' \
-    --exclude 'dist' \
-    --exclude 'coverage' \
-    --exclude '.env' \
-    --exclude 'postgres_data' \
-    --exclude 'redis_data' \
-    ./ $SERVER_USER@$SERVER_HOST:$DEST_DIR/
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Rsync failed. Aborting.${NC}"
-    exit 1
+if command -v rsync &> /dev/null; then
+    rsync -avz -I --delete -e "ssh -p $SERVER_PORT" \
+        --exclude 'node_modules' \
+        --exclude '.git' \
+        --exclude '.next' \
+        --exclude 'dist' \
+        --exclude 'coverage' \
+        --exclude '.env' \
+        --exclude 'postgres_data' \
+        --exclude 'redis_data' \
+        ./ $SERVER_USER@$SERVER_HOST:$DEST_DIR/
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Rsync failed. Aborting.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${YELLOW}rsync not found. Falling back to tar + scp...${NC}"
+    
+    TAR_FILE="deploy_package.tar.gz"
+    
+    # Create tarball excluding unwanted files
+    # Using --exclude before the target '.'
+    tar --exclude='node_modules' \
+        --exclude='.git' \
+        --exclude='.next' \
+        --exclude='dist' \
+        --exclude='coverage' \
+        --exclude='.env' \
+        --exclude='postgres_data' \
+        --exclude='redis_data' \
+        -czf $TAR_FILE .
+        
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Tar creation failed. Please install rsync or ensure tar supports --exclude.${NC}"
+        exit 1
+    fi
+    
+    # Upload tarball
+    echo -e "${YELLOW}Uploading package...${NC}"
+    scp -P $SERVER_PORT $TAR_FILE $SERVER_USER@$SERVER_HOST:$DEST_DIR/
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}SCP failed. Aborting.${NC}"
+        rm -f $TAR_FILE
+        exit 1
+    fi
+    
+    # Extract on server
+    echo -e "${YELLOW}Extracting on server...${NC}"
+    ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "cd $DEST_DIR && tar -xzf $TAR_FILE && rm $TAR_FILE"
+    
+    # Cleanup local
+    rm -f $TAR_FILE
 fi
 
 # 3. Handle Environment Variables
