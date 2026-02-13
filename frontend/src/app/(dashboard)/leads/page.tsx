@@ -780,7 +780,7 @@ export default function LeadsPage() {
 
                                                     // Find default channel (WhatsApp preferred)
                                                     const channelList = channels || [];
-                                                    const defaultChannel = channelList.find(c => c.type === 'whatsapp' && c.status === 'CONNECTED') || channelList[0];
+                                                    const defaultChannel = channelList.find(c => c.type === 'whatsapp' && c.status === 'active') || channelList[0];
                                                     
                                                     if (!defaultChannel) {
                                                         toast.error('Nenhum canal de comunicação conectado.');
