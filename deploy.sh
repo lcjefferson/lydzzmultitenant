@@ -189,12 +189,17 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
     grep 'version' frontend/package.json
     
     echo 'Rebuilding containers...'
-    docker compose -f docker-compose.prod.yml down
-    docker compose -f docker-compose.prod.yml build --no-cache frontend backend
-    docker compose -f docker-compose.prod.yml up -d
-    
-    echo 'Pruning unused images...'
-    docker image prune -f
+    # Build first to ensure success before stopping services
+    if docker compose -f docker-compose.prod.yml build --no-cache frontend backend; then
+        echo 'Build successful. Restarting services...'
+        docker compose -f docker-compose.prod.yml down
+        docker compose -f docker-compose.prod.yml up -d
+        echo 'Pruning unused images...'
+        docker image prune -f
+    else
+        echo 'Build failed! Keeping previous version running.'
+        exit 1
+    fi
 "
 
 echo -e "${GREEN}=== Deployment Complete! ===${NC}"
