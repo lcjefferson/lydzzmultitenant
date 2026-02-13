@@ -250,9 +250,14 @@ export class MessagesService {
       },
     });
 
+    const updateData: any = { lastMessageAt: new Date() };
+    if (dto.senderType === 'contact') {
+      updateData.unreadCount = { increment: 1 };
+    }
+
     await this.prisma.conversation.update({
       where: { id: dto.conversationId },
-      data: { lastMessageAt: new Date() },
+      data: updateData,
     });
 
     this.gateway.emitNewMessage(dto.conversationId, message);

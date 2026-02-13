@@ -150,6 +150,18 @@ export class ConversationsService {
     });
   }
 
+  async markAsRead(id: string, organizationId: string) {
+    const conversation = await this.findOne(id, organizationId);
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found or access denied');
+    }
+
+    return this.prisma.conversation.update({
+      where: { id },
+      data: { unreadCount: 0 },
+    });
+  }
+
   async remove(id: string, organizationId: string) {
     const conversation = await this.findOne(id, organizationId);
     if (!conversation) {

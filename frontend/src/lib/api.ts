@@ -323,6 +323,11 @@ class ApiService {
         return response.data;
     }
 
+    async markConversationAsRead(id: string): Promise<Conversation> {
+        const response = await this.api.patch<Conversation>(`/conversations/${id}/read`);
+        return response.data;
+    }
+
     async deleteConversation(id: string): Promise<void> {
         await this.api.delete(`/conversations/${id}`);
     }

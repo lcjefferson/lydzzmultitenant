@@ -72,6 +72,21 @@ export function useUpdateConversation() {
     });
 }
 
+export function useMarkConversationAsRead() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => api.markConversationAsRead(id),
+        onSuccess: (_, id) => {
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            queryClient.invalidateQueries({ queryKey: ['conversations', id] });
+        },
+        onError: (error: unknown) => {
+            console.error('Error marking conversation as read:', error);
+        },
+    });
+}
+
 export function useDeleteConversation() {
     const queryClient = useQueryClient();
 

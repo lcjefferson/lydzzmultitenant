@@ -151,6 +151,7 @@ model AgentChannel {
 model Conversation {
   id                String    @id @default(uuid())
   status            String    @default("active") // active, waiting, closed
+  unreadCount       Int       @default(0)
   contactName       String
   contactIdentifier String    // phone or instagram ID
   lastMessageAt     DateTime  @default(now())

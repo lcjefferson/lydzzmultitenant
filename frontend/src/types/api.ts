@@ -63,6 +63,7 @@ export interface Conversation {
   contactName: string;
   contactIdentifier: string;
   status: 'active' | 'waiting' | 'closed';
+  unreadCount?: number;
   channelId: string;
   agentId?: string;
   assignedToId?: string;

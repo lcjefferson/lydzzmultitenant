@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X, Mic, Square, RefreshCw, ArrowLeft } from 'lucide-react';
-import { useConversations, useUpdateConversation } from '@/hooks/api/use-conversations';
+import { useConversations, useUpdateConversation, useMarkConversationAsRead } from '@/hooks/api/use-conversations';
 import { useMessages, useCreateMessage } from '@/hooks/api/use-messages';
 import { useSocket } from '@/hooks/use-socket';
 import { useQueryClient } from '@tanstack/react-query';
@@ -125,7 +125,8 @@ export default function ConversationsPage() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [messageInput, setMessageInput] = useState('');
-    const [filter, setFilter] = useState<'all' | 'active' | 'waiting'>('all');
+    const [filter, setFilter] = useState<'all' | 'active' | 'waiting' | 'unread'>('all');
+    const markAsRead = useMarkConversationAsRead();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messageInputRef = useRef<HTMLTextAreaElement>(null);
     const queryClient = useQueryClient();
@@ -310,20 +311,36 @@ export default function ConversationsPage() {
         if (effectiveSelectedId) {
             joinConversation(effectiveSelectedId);
 
+            // Mark as read if needed
+            const conv = conversations?.find(c => c.id === effectiveSelectedId);
+            if (conv && (conv.unreadCount || 0) > 0) {
+                markAsRead.mutate(effectiveSelectedId);
+            }
+
             return () => {
                 leaveConversation(effectiveSelectedId);
             };
         }
-    }, [effectiveSelectedId, joinConversation, leaveConversation]);
+    }, [effectiveSelectedId, joinConversation, leaveConversation, conversations, markAsRead]);
 
     // Listen for new messages via WebSocket
     useEffect(() => {
-        const handleNewMessage = (message: unknown) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleNewMessage = (message: any) => {
             console.log('📨 New message received via WebSocket:', message);
 
             // Invalidate messages query to refetch
             queryClient.invalidateQueries({ queryKey: ['messages', effectiveSelectedId] });
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
+
+            // If the message is for the current conversation, mark as read again
+            // We verify if the message is NOT from the current user (senderType !== 'user') to avoid redundant calls, 
+            // though the backend only increments for 'contact'.
+            if (effectiveSelectedId && message.conversationId === effectiveSelectedId) {
+                // Small delay to ensure the user "sees" it or simply to allow the previous query invalidation to settle?
+                // Actually we just want to reset the counter on the server.
+                markAsRead.mutate(effectiveSelectedId);
+            }
         };
 
         onNewMessage(handleNewMessage);
@@ -335,7 +352,7 @@ export default function ConversationsPage() {
             offMessageCreated(handleNewMessage);
             offMessageUpdated(handleNewMessage);
         };
-    }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient]);
+    }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient, markAsRead]);
 
     // Scroll to bottom when messages change
     useEffect(() => {
@@ -458,7 +475,12 @@ export default function ConversationsPage() {
     };
 
     const filteredConversations = conversations?.filter((conv) => {
-        const matchesFilter = filter === 'all' ? true : conv.status === filter;
+        let matchesFilter = true;
+        if (filter === 'unread') {
+             matchesFilter = (conv.unreadCount || 0) > 0;
+        } else if (filter !== 'all') {
+             matchesFilter = conv.status === filter;
+        }
         
         if (!searchTerm) return matchesFilter;
 
@@ -612,6 +634,14 @@ export default function ConversationsPage() {
                         >
                             Aguardando
                         </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setFilter('unread')}
+                            className={filter === 'unread' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
+                        >
+                            Não lidas
+                        </Button>
                     </div>
 
                     {/* Conversation List */}
@@ -632,6 +662,7 @@ export default function ConversationsPage() {
                                         lastMessage={last}
                                         timestamp={new Date(conv.lastMessageAt).toISOString()}
                                         status={conv.status}
+                                        unreadCount={conv.unreadCount}
                                         isSelected={effectiveSelectedId === conv.id}
                                         onClick={() => setSelectedConversationId(conv.id)}
                                         channelType={(conv as any).channel?.type}

@@ -48,9 +48,11 @@ export function ConversationItem({
     return (
         <button
             onClick={onClick}
+            aria-label={`Conversa com ${contactName}. ${unreadCount && unreadCount > 0 ? `${unreadCount} mensagens não lidas.` : ''}`}
             className={cn(
-                'w-full p-3 flex items-center gap-3 hover:bg-white transition-colors border-b border-white/10 text-left group',
-                isSelected && 'bg-white'
+                'w-full p-3 flex items-center gap-3 hover:bg-white transition-colors border-b border-white/10 text-left group relative',
+                isSelected && 'bg-white',
+                !isSelected && unreadCount && unreadCount > 0 && 'bg-[#2a3942] border-l-4 border-l-[#00a884]'
             )}
         >
             {/* Avatar with Status */}
@@ -79,12 +81,14 @@ export function ConversationItem({
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                     <h4 className={cn(
-                        "font-semibold truncate text-base",
-                        isSelected ? "text-neutral-900" : "text-gray-50 group-hover:text-neutral-900"
+                        "truncate text-base",
+                        isSelected ? "text-neutral-900 font-semibold" : "text-gray-50 group-hover:text-neutral-900",
+                        !isSelected && unreadCount && unreadCount > 0 ? "font-bold text-white" : "font-semibold"
                     )}>{contactName}</h4>
                     <span className={cn(
                         "text-xs flex-shrink-0 whitespace-nowrap",
-                        isSelected ? "text-neutral-500" : "text-gray-400 group-hover:text-neutral-500"
+                        isSelected ? "text-neutral-500" : "text-gray-400 group-hover:text-neutral-500",
+                        !isSelected && unreadCount && unreadCount > 0 && "text-[#00a884] font-medium"
                     )}>
                         {formatRelativeTime(timestamp)}
                     </span>
@@ -92,11 +96,12 @@ export function ConversationItem({
                 <div className="flex items-center justify-between gap-2">
                     <p className={cn(
                         "text-sm truncate flex-1",
-                        isSelected ? "text-neutral-600" : "text-gray-300 group-hover:text-neutral-600"
+                        isSelected ? "text-neutral-600" : "text-gray-300 group-hover:text-neutral-600",
+                        !isSelected && unreadCount && unreadCount > 0 ? "font-medium text-gray-100" : ""
                     )}>{lastMessage}</p>
                     {/* Unread Badge */}
                     {unreadCount && unreadCount > 0 ? (
-                        <Badge variant="default" className="flex-shrink-0 bg-green-500 hover:bg-green-600 h-5 min-w-[1.25rem] px-1 justify-center rounded-full">
+                        <Badge variant="default" className="flex-shrink-0 bg-blue-500 hover:bg-blue-600 h-5 min-w-[1.25rem] px-1 justify-center rounded-full">
                             {unreadCount}
                         </Badge>
                     ) : null}

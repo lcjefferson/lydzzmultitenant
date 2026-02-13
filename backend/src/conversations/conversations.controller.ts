@@ -51,6 +51,11 @@ export class ConversationsController {
     return this.conversationsService.update(id, updateConversationDto, organizationId);
   }
 
+  @Patch(':id/read')
+  markAsRead(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+    return this.conversationsService.markAsRead(id, organizationId);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
     return this.conversationsService.remove(id, organizationId);
