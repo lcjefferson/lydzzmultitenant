@@ -13,19 +13,53 @@ export class ConversationsService {
       where: { id: dto.channelId },
     });
 
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    // Sanitize phone number (remove non-digits)
+    // Assuming contactIdentifier is a phone number for whatsapp channels
+    let sanitizedIdentifier = dto.contactIdentifier;
+    if (channel.type === 'whatsapp') {
+       sanitizedIdentifier = sanitizedIdentifier.replace(/\D/g, '');
+    }
+
     const existingLead = await this.prisma.lead.findFirst({
       where: {
         organizationId,
-        phone: dto.contactIdentifier,
+        OR: [
+            { phone: dto.contactIdentifier },
+            { phone: sanitizedIdentifier },
+            { phone: `+${sanitizedIdentifier}` }
+        ]
       },
+      include: { conversation: true }
     });
+
+    // If lead exists and has a conversation, return it
+    if (existingLead && existingLead.conversation) {
+        return existingLead.conversation;
+    }
+
+    // Check if conversation exists by contactIdentifier and channel
+    const existingConversation = await this.prisma.conversation.findFirst({
+        where: {
+            organizationId,
+            channelId: dto.channelId,
+            contactIdentifier: sanitizedIdentifier
+        }
+    });
+
+    if (existingConversation) {
+        return existingConversation;
+    }
 
     const lead =
       existingLead ||
       (await this.prisma.lead.create({
         data: {
           name: dto.contactName || dto.contactIdentifier,
-          phone: dto.contactIdentifier,
+          phone: sanitizedIdentifier,
           status: 'Lead Novo',
           temperature: 'cold',
           source: channel?.type || 'conversation',
@@ -41,6 +75,7 @@ export class ConversationsService {
     return this.prisma.conversation.create({
       data: {
         ...dto,
+        contactIdentifier: sanitizedIdentifier,
         organizationId,
         leadId: lead.id,
         agentId: defaultAgent?.id,

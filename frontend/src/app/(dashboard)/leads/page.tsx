@@ -17,7 +17,9 @@ import {
     Upload,
 } from 'lucide-react';
 import { useLeads, useCreateLead, useUpdateLead, useDeleteLead, useLeadComments, useAddLeadComment, useDelegateLead, useImportLeads } from '@/hooks/api/use-leads';
+import { useChannels } from '@/hooks/api/use-channels';
 import { useAuth } from '@/contexts/auth-context';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useLeadStats } from '@/hooks/api/use-analytics';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,6 +59,7 @@ const FileIconExcel = ({ className }: { className?: string }) => (
 
 export default function LeadsPage() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
@@ -80,6 +83,7 @@ export default function LeadsPage() {
         status: statusFilter,
     });
     const { data: leadStats } = useLeadStats();
+    const { data: channels } = useChannels();
     const createLead = useCreateLead();
     const deleteLead = useDeleteLead();
     const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
@@ -755,11 +759,45 @@ export default function LeadsPage() {
                                 <div className="flex flex-wrap gap-2 justify-end">
                                         <Button
                                             size="sm"
-                                            onClick={() => {
-                                                const contact = lead.phone || lead.email || lead.name;
-                                                if (contact) {
-                                                    router.push(`/conversations?contact=${encodeURIComponent(contact)}`);
+                                            onClick={async () => {
+                                                try {
+                                                    console.log('Iniciando conversa para lead:', lead.name, 'Telefone original:', lead.phone);
+                                                    let contact = lead.phone;
+                                                    // Sanitize phone if it exists
+                                                    if (contact) {
+                                                        contact = contact.replace(/\D/g, '');
+                                                    }
+
+                                                    // Fallback to other contact info if phone is missing
+                                                    if (!contact) {
+                                                        contact = lead.email || lead.name;
+                                                    }
+
+                                                    if (!contact) {
+                                                        toast.error('Lead sem contato (telefone) definido.');
+                                                        return;
+                                                    }
+
+                                                    // Find default channel (WhatsApp preferred)
+                                                    const defaultChannel = channels?.find(c => c.type === 'whatsapp' && c.status === 'CONNECTED') || channels?.[0];
+                                                    
+                                                    if (!defaultChannel) {
+                                                        toast.error('Nenhum canal de comunicação conectado.');
+                                                        return;
+                                                    }
+
+                                                    const conversation = await api.createConversation({
+                                                        channelId: defaultChannel.id,
+                                                        contactIdentifier: contact,
+                                                        contactName: lead.name,
+                                                    });
+
+                                                    await queryClient.invalidateQueries({ queryKey: ['conversations'] });
+                                                    router.push(`/conversations?conversationId=${conversation.id}`);
                                                     setSelectedLead(null);
+                                                } catch (error) {
+                                                    console.error('Error starting conversation:', error);
+                                                    toast.error('Erro ao iniciar conversa.');
                                                 }
                                             }}
                                         >
