@@ -121,13 +121,27 @@ const FileIconExcel = ({ className }: { className?: string }) => (
   </svg>
 );
 
+function useIsMobile() {
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 767px)');
+        const update = () => setIsMobile(mq.matches);
+        update();
+        mq.addEventListener('change', update);
+        return () => mq.removeEventListener('change', update);
+    }, []);
+    return isMobile;
+}
+
 export default function ConversationsPage() {
     const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [messageInput, setMessageInput] = useState('');
-    const [filter, setFilter] = useState<'all' | 'active' | 'waiting' | 'unread'>('all');
+    const [filter, setFilter] = useState<'all' | 'unread' | 'unanswered'>('all');
+    const isMobile = useIsMobile();
     const markAsRead = useMarkConversationAsRead();
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messageInputRef = useRef<HTMLTextAreaElement>(null);
     const queryClient = useQueryClient();
     const [showLeadModal, setShowLeadModal] = useState(false);
@@ -223,10 +237,13 @@ export default function ConversationsPage() {
         ? conversations.find((c) => c.contactIdentifier === contactParam)?.id || null
         : null;
     const preselectedFromParamId = convParam || null;
-    const effectiveSelectedId = selectedConversationId
-        ?? preselectedFromParamId
-        ?? preselectedFromContact
-        ?? (conversations && conversations.length > 0 ? conversations[0].id : null);
+    // No mobile: quando o usuário clica em Voltar (selectedConversationId = null), não usar fallback — assim a lista de conversas volta a aparecer
+    const effectiveSelectedId = isMobile && selectedConversationId === null
+        ? null
+        : (selectedConversationId
+            ?? preselectedFromParamId
+            ?? preselectedFromContact
+            ?? (conversations && conversations.length > 0 ? conversations[0].id : null));
 
     const { data: apiMessages } = useMessages(effectiveSelectedId || '');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -354,10 +371,29 @@ export default function ConversationsPage() {
         };
     }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient, markAsRead]);
 
-    // Scroll to bottom when messages change
+    // Ao abrir uma conversa ou quando as mensagens mudam, rolar até a última mensagem
+    const messagesLength = messages?.length ?? 0;
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+        if (!effectiveSelectedId || messagesLength === 0) return;
+        const scrollToBottom = () => {
+            const container = messagesContainerRef.current;
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+            } else {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+            }
+        };
+        const id1 = requestAnimationFrame(() => {
+            requestAnimationFrame(scrollToBottom);
+        });
+        const t2 = setTimeout(scrollToBottom, 120);
+        const t3 = setTimeout(scrollToBottom, 400);
+        return () => {
+            cancelAnimationFrame(id1);
+            clearTimeout(t2);
+            clearTimeout(t3);
+        };
+    }, [effectiveSelectedId, messagesLength]);
 
     useEffect(() => {
         (async () => {
@@ -477,11 +513,13 @@ export default function ConversationsPage() {
     const filteredConversations = conversations?.filter((conv) => {
         let matchesFilter = true;
         if (filter === 'unread') {
-             matchesFilter = (conv.unreadCount || 0) > 0;
-        } else if (filter !== 'all') {
-             matchesFilter = conv.status === filter;
+            matchesFilter = (conv.unreadCount || 0) > 0;
+        } else if (filter === 'unanswered') {
+            const read = (conv.unreadCount || 0) === 0;
+            const lastMsg = conv.messages?.[0];
+            const lastFromContact = lastMsg?.senderType === 'contact';
+            matchesFilter = read && !!lastFromContact;
         }
-        
         if (!searchTerm) return matchesFilter;
 
         const searchLower = searchTerm.toLowerCase();
@@ -586,14 +624,19 @@ export default function ConversationsPage() {
     // Selection derived via effectiveSelectedId; no effect needed
 
     return (
-        <div className="flex flex-col h-screen">
+        <div className="flex flex-col h-screen min-h-[100dvh] max-h-[100dvh] md:max-h-none">
             <Header title="Conversas" description="Gerencie suas conversas em tempo real" />
 
-            <div className="flex-1 flex overflow-hidden">
-                {/* Conversation List - Left Column */}
-                <div className="w-80 border-r border-white/10 flex flex-col bg-[#111b21]">
+            <div className="flex-1 flex overflow-hidden min-h-0">
+                {/* Conversation List - Left Column: full width on mobile when no chat open; sidebar on desktop */}
+                <div
+                    className={`
+                        w-full md:w-80 border-r border-white/10 flex-col bg-[#111b21] flex
+                        ${effectiveSelectedId ? 'hidden md:flex' : ''}
+                    `}
+                >
                     {/* Search */}
-                    <div className="p-3 border-b border-white/10 bg-[#202c33]">
+                    <div className="p-2 sm:p-3 border-b border-white/10 bg-[#202c33]">
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search className="h-4 w-4 text-gray-400" />
@@ -601,7 +644,7 @@ export default function ConversationsPage() {
                             <input
                                 type="text"
                                 placeholder="Buscar conversas..."
-                                className="block w-full pl-10 pr-3 py-2 border-none rounded-lg leading-5 bg-[#111b21] text-white placeholder-gray-400 focus:outline-none focus:ring-0 sm:text-sm"
+                                className="block w-full pl-10 pr-3 py-2.5 sm:py-2 border-none rounded-lg leading-5 bg-[#111b21] text-white placeholder-gray-400 focus:outline-none focus:ring-0 text-base sm:text-sm"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -609,38 +652,30 @@ export default function ConversationsPage() {
                     </div>
 
                     {/* Filters */}
-                    <div className="p-4 border-b border-white/10 flex gap-2">
+                    <div className="p-2 sm:p-4 border-b border-white/10 flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none flex-nowrap sm:flex-wrap">
                         <Button
                             size="sm"
                             variant="ghost"
                             onClick={() => setFilter('all')}
-                            className={filter === 'all' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
+                            className={`min-h-[40px] sm:min-h-0 shrink-0 ${filter === 'all' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}`}
                         >
                             Todas
                         </Button>
                         <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setFilter('active')}
-                            className={filter === 'active' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
-                        >
-                            Ativas
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setFilter('waiting')}
-                            className={filter === 'waiting' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
-                        >
-                            Aguardando
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="ghost"
                             onClick={() => setFilter('unread')}
-                            className={filter === 'unread' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}
+                            className={`min-h-[40px] sm:min-h-0 shrink-0 ${filter === 'unread' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}`}
                         >
                             Não lidas
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setFilter('unanswered')}
+                            className={`min-h-[40px] sm:min-h-0 shrink-0 ${filter === 'unanswered' ? "bg-[#00a884] hover:bg-[#008f6f] text-white" : "text-neutral-300 hover:bg-white hover:text-neutral-900"}`}
+                        >
+                            Não respondidas
                         </Button>
                     </div>
 
@@ -677,67 +712,71 @@ export default function ConversationsPage() {
                     </div>
                 </div>
 
-                {/* Chat Area - Middle Column */}
+                {/* Chat Area - Middle Column: full width on mobile when conversation selected */}
                 {effectiveSelectedId && currentConversation ? (
-                    <div className={`flex-1 flex flex-col ${!effectiveSelectedId ? 'hidden md:flex' : 'flex'}`}>
+                    <div className="flex-1 flex flex-col min-w-0 w-full">
                         {/* Chat Header */}
-                        <div className="p-4 border-b border-border bg-background-secondary flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                        <div className="p-3 sm:p-4 border-b border-border bg-background-secondary flex items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+                            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                                 <Button 
                                     variant="ghost" 
-                                    size="sm" 
-                                    className="md:hidden -ml-2 px-2" 
+                                    size="icon"
+                                    className="md:hidden shrink-0 h-10 w-10" 
                                     onClick={() => setSelectedConversationId(null)}
+                                    aria-label="Voltar para lista"
                                 >
                                     <ArrowLeft className="h-5 w-5" />
                                 </Button>
-                                <div>
-                                    <h3 className="font-semibold text-neutral-900">{currentConversation.contactName || currentConversation.lead?.name || currentConversation.contactIdentifier}</h3>
-                                    <p className="text-sm text-neutral-700">{currentConversation.contactIdentifier || currentConversation.lead?.email || currentConversation.lead?.phone}</p>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="font-semibold text-neutral-900 truncate text-sm sm:text-base">{currentConversation.contactName || currentConversation.lead?.name || currentConversation.contactIdentifier}</h3>
+                                    <p className="text-xs sm:text-sm text-neutral-700 truncate">{currentConversation.contactIdentifier || currentConversation.lead?.email || currentConversation.lead?.phone}</p>
                                 </div>
-                                {/* WebSocket Status */}
-                                <div className="flex items-center gap-1 text-xs">
+                                <div className="flex items-center gap-1 text-xs shrink-0">
                                     {isConnected ? (
                                         <>
                                             <Wifi className="h-3 w-3 text-success" />
-                                            <span className="text-success">Online</span>
+                                            <span className="hidden sm:inline text-success">Online</span>
                                         </>
                                     ) : (
                                         <>
                                             <WifiOff className="h-3 w-3 text-error" />
-                                            <span className="text-error">Offline</span>
+                                            <span className="hidden sm:inline text-error">Offline</span>
                                         </>
                                     )}
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
                                 {currentConversation.lead?.source && (
-                                    <Badge variant="default" className="capitalize bg-blue-100 text-blue-800 hover:bg-blue-200 border-0">
+                                    <Badge variant="default" className="capitalize bg-blue-100 text-blue-800 hover:bg-blue-200 border-0 text-xs hidden sm:inline-flex">
                                         {currentConversation.lead.source.replace(/_/g, ' ')}
                                     </Badge>
                                 )}
                                 <Button
-                                    size="sm"
+                                    size="icon"
                                     variant="outline"
+                                    className="h-9 w-9 shrink-0"
                                     onClick={handleSyncMessages}
                                     title="Sincronizar Mensagens"
                                 >
                                     <RefreshCw className="h-4 w-4" />
                                 </Button>
-                                <Badge variant={currentConversation.status === 'active' ? 'success' : 'default'}>
+                                <Badge variant={currentConversation.status === 'active' ? 'success' : 'default'} className="text-xs hidden sm:inline-flex">
                                     {currentConversation.status}
                                 </Badge>
-                                <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white" onClick={handleAssignConversation}>
+                                <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 text-xs sm:text-sm h-9" onClick={handleAssignConversation}>
                                     Assumir
                                 </Button>
-                                <button className="p-2 hover:bg-surface rounded-md transition-colors">
+                                <button className="p-2 hover:bg-surface rounded-md transition-colors shrink-0" aria-label="Mais opções">
                                     <MoreVertical className="h-5 w-5" />
                                 </button>
                             </div>
                         </div>
 
                         {/* Messages */}
-                        <div className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-4 bg-[#efeae2]">
+                        <div
+                            ref={messagesContainerRef}
+                            className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-3 sm:p-6 space-y-3 sm:space-y-4 bg-[#efeae2]"
+                        >
                             {messages && messages.length > 0 ? (
                                 messages.map((message) => (
                                     <MessageBubble
@@ -757,7 +796,7 @@ export default function ConversationsPage() {
                         </div>
 
                         {/* Message Input */}
-                        <div className="p-4 border-t border-border bg-background-secondary">
+                        <div className="p-2 sm:p-4 border-t border-border bg-background-secondary shrink-0">
                             <input
                                 type="file"
                                 ref={fileInputRef}
@@ -765,8 +804,8 @@ export default function ConversationsPage() {
                                 onChange={handleFileUpload}
                                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                             />
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1">
+                            <div className="flex items-end gap-1.5 sm:gap-2">
+                                <div className="flex-1 min-w-0">
                                     <textarea
                                         ref={messageInputRef}
                                         value={messageInput}
@@ -778,7 +817,7 @@ export default function ConversationsPage() {
                                             }
                                         }}
                                         placeholder="Digite sua mensagem..."
-                                        className="w-full resize-none bg-white text-neutral-900 border border-neutral-300 rounded-lg px-4 py-3 focus:outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884] placeholder:text-neutral-400 min-h-[44px] max-h-32 overflow-y-auto"
+                                        className="w-full resize-none bg-white text-neutral-900 border border-neutral-300 rounded-lg px-3 py-2.5 sm:px-4 sm:py-3 focus:outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884] placeholder:text-neutral-400 min-h-[44px] max-h-32 overflow-y-auto text-base"
                                         rows={1}
                                         disabled={createMessage.isPending}
                                         autoFocus
@@ -786,7 +825,7 @@ export default function ConversationsPage() {
                                 </div>
                                 <button 
                                     type="button"
-                                    className="p-2 text-neutral-500 hover:text-neutral-700 hover:bg-surface rounded-md transition-colors"
+                                    className="p-2.5 sm:p-2 text-neutral-500 hover:text-neutral-700 hover:bg-surface rounded-md transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center sm:min-h-0 sm:min-w-0"
                                     onClick={() => fileInputRef.current?.click()}
                                     title="Anexar arquivo"
                                 >
@@ -794,27 +833,27 @@ export default function ConversationsPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`p-2 rounded-md transition-colors ${isRecording ? 'text-red-500 hover:text-red-600 bg-red-50' : 'text-neutral-500 hover:text-neutral-700 hover:bg-surface'}`}
+                                    className={`p-2.5 sm:p-2 rounded-md transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center sm:min-h-0 sm:min-w-0 ${isRecording ? 'text-red-500 hover:text-red-600 bg-red-50' : 'text-neutral-500 hover:text-neutral-700 hover:bg-surface'}`}
                                     onClick={isRecording ? handleStopRecording : handleStartRecording}
                                     title={isRecording ? "Parar e enviar" : "Gravar áudio"}
                                 >
                                     {isRecording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-5 w-5" />}
                                 </button>
-                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording} className="bg-[#00a884] hover:bg-[#008f6f] text-white">
+                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording} className="bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 min-h-[44px] min-w-[44px] p-0 sm:min-h-0 sm:min-w-0 sm:px-3" aria-label="Enviar">
                                     <Send className="h-4 w-4" />
                                 </Button>
                             </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-500">
+                    <div className="flex-1 flex items-center justify-center text-gray-500 hidden md:flex">
                         Selecione uma conversa para começar
                     </div>
                 )}
 
-                {/* Lead Details - Right Column */}
+                {/* Lead Details - Right Column: hidden on mobile/tablet, visible on xl */}
                 {selectedConversationId && currentConversation && (
-                    <div className="w-80 border-l border-primary-500/20 bg-white p-6 overflow-y-auto scrollbar-thin text-neutral-900">
+                    <div className="hidden xl:block w-80 border-l border-primary-500/20 bg-white p-6 overflow-y-auto scrollbar-thin text-neutral-900 shrink-0">
                         <div className="space-y-6">
                             <div className="space-y-4">
                                 <div className="flex items-start justify-between">

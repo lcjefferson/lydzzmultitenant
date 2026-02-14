@@ -38,6 +38,7 @@ COPY --from=builder /app/dist ./dist
 
 RUN mkdir -p /app/uploads && chmod 777 /app/uploads
 
+ENV PORT=3000
 EXPOSE 3000
 
 CMD ["npm", "run", "start:prod"]

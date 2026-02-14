@@ -1,0 +1,34 @@
+[2026-02-14T01:53:43.689Z] Received webm: uploads/3d4952e35a2a0874c4464f2a3fb2a914.webm
+[2026-02-14T01:53:43.722Z] FFmpeg command: ffmpeg -i uploads/3d4952e35a2a0874c4464f2a3fb2a914.webm -y -acodec libopus -b:a 64k uploads/3d4952e35a2a0874c4464f2a3fb2a914.ogg
+[2026-02-14T01:53:43.731Z] FFmpeg error: ffmpeg exited with code 1: uploads/3d4952e35a2a0874c4464f2a3fb2a914.webm: Invalid data found when processing input
+
+[2026-02-14T01:53:43.731Z] Catch error: ffmpeg exited with code 1: uploads/3d4952e35a2a0874c4464f2a3fb2a914.webm: Invalid data found when processing input
+
+[2026-02-14T01:55:31.494Z] Received webm: uploads/d8bef9ac729be0e91bea727d6741daca.webm
+[2026-02-14T01:55:31.498Z] FFmpeg command: ffmpeg -i uploads/d8bef9ac729be0e91bea727d6741daca.webm -y -acodec libopus -b:a 64k uploads/d8bef9ac729be0e91bea727d6741daca.ogg
+[2026-02-14T01:55:31.539Z] FFmpeg success
+[2026-02-14T01:55:31.540Z] Created .ogg: d8bef9ac729be0e91bea727d6741daca.ogg
+[2026-02-14T01:55:53.601Z] Received webm: uploads/543d108ced1f99dce8cd5efffa9de1932.webm
+[2026-02-14T01:55:53.605Z] FFmpeg command: ffmpeg -i uploads/543d108ced1f99dce8cd5efffa9de1932.webm -y -acodec libopus -b:a 64k uploads/543d108ced1f99dce8cd5efffa9de1932.ogg
+[2026-02-14T01:55:53.647Z] FFmpeg success
+[2026-02-14T01:55:53.648Z] Created .ogg: 543d108ced1f99dce8cd5efffa9de1932.ogg
+[2026-02-14T02:01:24.512Z] Received webm: uploads/2fd5eb1889ae310a41a36a674c6147eb1.webm
+[2026-02-14T02:01:24.516Z] FFmpeg command: ffmpeg -i uploads/2fd5eb1889ae310a41a36a674c6147eb1.webm -y -acodec libopus -b:a 64k uploads/2fd5eb1889ae310a41a36a674c6147eb1.ogg
+[2026-02-14T02:01:24.573Z] FFmpeg success
+[2026-02-14T02:01:24.573Z] Created .ogg: 2fd5eb1889ae310a41a36a674c6147eb1.ogg
+[2026-02-14T02:16:02.243Z] Received webm: uploads/287fb23f8415eb3b8fe44cad2a1cbdac.webm
+[2026-02-14T02:16:02.244Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:16:21.110Z] Received webm: uploads/0768bd4aaa6b29cae29c294c92ab19cb.webm
+[2026-02-14T02:16:21.111Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:20:37.348Z] Received webm: uploads/e743e7d2b924757122a8ed230cd9a3fc.webm
+[2026-02-14T02:20:37.349Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:20:52.559Z] Received webm: uploads/2a294e5dc1ff2101bafe93c8ad2eb590.webm
+[2026-02-14T02:20:52.559Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:26:02.239Z] Received webm: uploads/2e115a74211000929007bef102a9622aca.webm
+[2026-02-14T02:26:02.240Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:44:54.660Z] Received webm: uploads/109fbd9ff47755f5f0105b3e35103f7f6cb.webm
+[2026-02-14T02:44:54.661Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:58:29.456Z] Received webm: uploads/109cd686b1e443dd9b4a106cfcda46c34.webm
+[2026-02-14T02:58:29.456Z] Catch error: ffmpeg is not a function
+[2026-02-14T02:58:39.510Z] Received webm: uploads/e1a8e5fcf14379114f6e2d4107c9e5953.webm
+[2026-02-14T02:58:39.510Z] Catch error: ffmpeg is not a function

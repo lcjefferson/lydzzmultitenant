@@ -28,6 +28,10 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_WS_URL
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
 
+# URL do backend para rewrites no servidor Next (ex: http://backend:3000 em Docker)
+ARG BACKEND_URL=http://127.0.0.1:3001
+ENV BACKEND_URL=$BACKEND_URL
+
 RUN npm run build
 
 # Production image, copy all the files and run next

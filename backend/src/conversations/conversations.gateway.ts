@@ -10,7 +10,10 @@ import { Server, Socket } from 'socket.io';
 @WebSocketGateway({
   cors: {
     origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true,
   },
+  transports: ['polling', 'websocket'],
 })
 export class ConversationsGateway
   implements OnGatewayConnection, OnGatewayDisconnect

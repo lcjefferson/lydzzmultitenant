@@ -14,9 +14,14 @@ interface WhatsAppTextMessage {
 @Injectable()
 export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
-  private readonly apiUrl = 'https://graph.facebook.com/v18.0';
+  private readonly apiUrl: string;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    this.apiUrl =
+      this.configService.get<string>('WHATSAPP_API_URL')?.replace(/\/$/, '') ||
+      'https://graph.facebook.com/v18.0';
+    this.logger.log(`WhatsApp API base URL: ${this.apiUrl}`);
+  }
 
   /**
    * Send a text message via WhatsApp Business API
@@ -114,13 +119,17 @@ export class WhatsAppService {
           return { success: false, error: `Invalid Media URL: ${mediaUrl}` };
       }
 
-      // Check for unsupported audio formats (WebM) and fallback to document
-      // WhatsApp Official API does not support WebM for 'audio' type (voice notes)
+      // Check for WebM and ensure it's treated as audio if possible, or keep as audio
+      // WhatsApp Official API supports .ogg (with opus) for audio/voice notes.
+      // WebM is often used by browsers for recording.
       let finalMediaType = mediaType;
       const urlObj = new URL(validMediaUrl);
-      if (mediaType === 'audio' && (validMediaUrl.endsWith('.webm') || urlObj.pathname.endsWith('.webm'))) {
-          this.logger.warn(`Converting WebM audio to document for WhatsApp compatibility: ${validMediaUrl}`);
-          finalMediaType = 'document';
+      
+      // If it's a webm or ogg audio, we'll keep it as 'audio'
+      const isWebm = validMediaUrl.endsWith('.webm') || urlObj.pathname.endsWith('.webm');
+      const isOgg = validMediaUrl.endsWith('.ogg') || urlObj.pathname.endsWith('.ogg');
+      if (mediaType === 'audio' || isWebm || isOgg) {
+          finalMediaType = 'audio';
       }
 
       const payload: any = {
@@ -134,8 +143,20 @@ export class WhatsAppService {
           link: validMediaUrl
       };
 
+      // Ensure HTTPS for non-localhost URLs as required by Meta
+      if (mediaObject.link.startsWith('http://') && !mediaObject.link.includes('localhost') && !mediaObject.link.includes('127.0.0.1')) {
+          this.logger.log(`Upgrading media URL to HTTPS for Meta compatibility: ${mediaObject.link}`);
+          mediaObject.link = mediaObject.link.replace('http://', 'https://');
+      }
+
+      // WhatsApp Cloud API specifically requires audio files to NOT have a caption
       if (caption && finalMediaType !== 'audio') {
           mediaObject.caption = caption;
+      }
+
+      // Voice Note (PTT) hint for WhatsApp Cloud API
+      if (finalMediaType === 'audio') {
+          mediaObject.voice = true;
       }
 
       // If it's a document, set filename
@@ -145,7 +166,14 @@ export class WhatsAppService {
 
       payload[finalMediaType] = mediaObject;
 
-      this.logger.log(`Sending WhatsApp ${finalMediaType} to ${cleanTo} using PhoneID ${cleanPhoneId}`);
+      this.logger.log(`Sending WhatsApp ${finalMediaType} to ${cleanTo} using PhoneID ${cleanPhoneId}. Payload: ${JSON.stringify(payload)}`);
+
+      if (validMediaUrl.includes('localhost')) {
+          this.logger.warn(`Media URL contains 'localhost'. WhatsApp cannot download the file. Set APP_URL to a public URL (e.g. ngrok).`);
+      }
+      if (finalMediaType === 'audio' && validMediaUrl.toLowerCase().includes('webm')) {
+          this.logger.warn(`WhatsApp does not support WebM. Audio should be converted to OGG on upload.`);
+      }
 
       const response = await axios.post<unknown>(
         `${this.apiUrl}/${cleanPhoneId}/messages`,
@@ -158,20 +186,20 @@ export class WhatsAppService {
         },
       );
 
+      this.logger.log(`WhatsApp API Response: ${JSON.stringify(response.data)}`);
       const data = response.data as { messages?: Array<{ id?: string }> };
-      this.logger.log(`Media message sent to ${cleanTo}: ${data.messages?.[0]?.id}`);
       return { success: true };
     } catch (error) {
-      let errorMessage = 'Unknown error';
       if (axios.isAxiosError(error)) {
-        errorMessage = `Status: ${error.response?.status}. Data: ${JSON.stringify(error.response?.data)}`;
-        this.logger.error(`Failed to send WhatsApp media message. ${errorMessage}`);
-      } else {
-        const err = error as { message?: string };
-        errorMessage = err.message ?? 'unknown';
-        this.logger.error(`Failed to send WhatsApp media message: ${errorMessage}`);
+        const errorData = error.response?.data;
+        this.logger.error(`WhatsApp API Error Details: ${JSON.stringify(errorData)}`);
+        return { 
+          success: false, 
+          error: `WhatsApp API Error: ${error.response?.status} - ${JSON.stringify(errorData)}` 
+        };
       }
-      return { success: false, error: errorMessage };
+      this.logger.error(`Error sending WhatsApp media message: ${(error as Error).message}`);
+      return { success: false, error: (error as Error).message };
     }
   }
 
@@ -309,13 +337,14 @@ export class WhatsAppService {
           content = '[mensagem]';
       }
 
+      const rawPhoneNumberId = value?.metadata?.phone_number_id;
       return {
         from: message.from ?? '',
         message: content,
         messageId: message.id ?? '',
         timestamp: message.timestamp ?? '',
         type: msgType,
-        phoneNumberId: value?.metadata?.phone_number_id,
+        phoneNumberId: rawPhoneNumberId != null ? String(rawPhoneNumberId) : undefined,
         contactName: value?.contacts?.[0]?.profile?.name,
         mediaId,
       };

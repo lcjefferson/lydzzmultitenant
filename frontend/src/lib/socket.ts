@@ -2,14 +2,26 @@ import { io, Socket } from 'socket.io-client';
 import type { Message } from '@/types/api';
 
 const getWsUrl = () => {
-    let url = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001';
-    
-    // Fix Mixed Content: Upgrade HTTP to HTTPS (which becomes WSS) if running on HTTPS page
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
-        url = url.replace('http://', 'https://');
+    // In the browser, we should be careful with protocols
+    if (typeof window !== 'undefined') {
+        const isHttps = window.location.protocol === 'https:';
+        
+        // If we have an environment variable, use it but respect the protocol
+        if (process.env.NEXT_PUBLIC_WS_URL) {
+            let url = process.env.NEXT_PUBLIC_WS_URL;
+            if (isHttps && url.startsWith('http://')) {
+                // If the page is HTTPS, we can't connect to an HTTP WebSocket directly
+                // unless we are going through a proxy on the same origin.
+                console.log('Socket Service: HTTPS detected, checking if we should use origin instead of', url);
+                return window.location.origin;
+            }
+            return url;
+        }
+        
+        return window.location.origin;
     }
     
-    return url;
+    return process.env.NEXT_PUBLIC_WS_URL || 'http://127.0.0.1:3001';
 };
 
 const WS_URL = getWsUrl();
@@ -27,15 +39,19 @@ class SocketService {
         console.log('Connecting to WebSocket...', WS_URL);
 
         try {
-            this.socket = io(WS_URL, {
+            const wsUrl = getWsUrl();
+            console.log('Socket Service: Connecting to:', wsUrl);
+
+            this.socket = io(wsUrl, {
                 auth: {
-                    token,
+                    token: token
                 },
-                transports: ['websocket', 'polling'],
                 reconnection: true,
-                reconnectionDelay: 1000,
                 reconnectionAttempts: 5,
-                path: '/socket.io/', // Explicitly set path to match Nginx proxy
+                reconnectionDelay: 1000,
+                transports: ['websocket'], // Force websocket to avoid XHR polling errors
+                timeout: 20000,
+                path: '/socket.io',
             });
 
             this.socket.on('connect', () => {
@@ -47,11 +63,19 @@ class SocketService {
             });
 
             this.socket.on('connect_error', (error) => {
-                console.error('WebSocket connection error:', error);
+                console.error('WebSocket connection error:', error.message);
+                console.error('Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    description: (error as any).description,
+                    context: (error as any).context,
+                    type: (error as any).type,
+                    stack: error.stack
+                });
             });
 
             this.socket.on('error', (error) => {
-                console.error('WebSocket error:', error);
+                console.error('WebSocket error details:', error);
             });
         } catch (error) {
             console.error('Error initializing socket.io:', error);

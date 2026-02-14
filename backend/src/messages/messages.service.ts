@@ -626,12 +626,28 @@ export class MessagesService {
       const phoneNumberId = rawPhoneNumberId?.trim();
 
       if (!phoneNumberId || !accessToken) {
-        this.logger.error('WhatsApp channel missing configuration');
-        this.logger.debug(`Debug: PhoneId: ${phoneNumberId ? 'Present' : 'Missing'}, AccessToken: ${accessToken ? 'Present' : 'Missing'}`);
+        this.logger.error(
+          `WhatsApp channel missing configuration. PhoneNumberId: ${phoneNumberId ? 'OK' : 'FALTANDO'}, AccessToken: ${accessToken ? 'OK' : 'FALTANDO'}. ` +
+          'Configure em Canais > editar canal > Phone Number ID e Access Token e clique em Salvar.',
+        );
+        const errorMsg = await this.prisma.message.create({
+          data: {
+            conversationId: conversation.id,
+            type: 'text',
+            senderType: 'ai',
+            content:
+              '⚠️ **Mensagem não enviada ao WhatsApp:** o canal não está com Phone Number ID e/ou Access Token configurados. ' +
+              'Vá em **Canais**, edite o canal WhatsApp Oficial, preencha os campos e clique em **Salvar Configuração**.',
+            metadata: { isSystemError: true },
+          },
+        });
+        this.gateway.emitNewMessage(conversation.id, errorMsg);
         return;
       }
 
-      this.logger.log(`Using WhatsApp Official API. PhoneID: ${phoneNumberId}, Token: ${accessToken.slice(0, 10)}...`);
+      this.logger.log(
+        `[Outbound WhatsApp] Enviando para ${conversation.contactIdentifier} | PhoneNumberId: ${phoneNumberId} | Token: ${accessToken.slice(0, 8)}...`,
+      );
 
       let result;
       if (mediaUrl && mediaType) {

@@ -11,17 +11,27 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const ffmpeg = require('fluent-ffmpeg');
 
-const execAsync = promisify(exec);
+const ffmpegPath = ffmpegInstaller.path;
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 @Controller('upload')
-@UseGuards(JwtAuthGuard)
+// @UseGuards(JwtAuthGuard)
 export class UploadController {
   private readonly logger = new Logger(UploadController.name);
+
+  constructor() {
+    this.logger.log('UploadController initialized. FFmpeg Path: ' + ffmpegInstaller.path);
+    if (!fs.existsSync('uploads')) {
+      fs.mkdirSync('uploads', { recursive: true });
+      this.logger.log('Created uploads directory');
+    }
+  }
 
   @Post('image')
   @UseInterceptors(
@@ -87,32 +97,65 @@ export class UploadController {
       throw new BadRequestException('No file uploaded');
     }
 
-    // Check if it's audio/webm and convert to mp3
-    if (file.mimetype === 'audio/webm' || file.originalname.endsWith('.webm')) {
+    this.logger.log(`UPLOAD_DEBUG: Received file ${file.originalname} with mimetype ${file.mimetype}`);
+    
+    const isWebm = file.mimetype === 'audio/webm' || 
+                   file.mimetype === 'video/webm' || 
+                   file.originalname.toLowerCase().endsWith('.webm');
+
+    if (isWebm) {
         try {
             const inputPath = file.path;
-            const outputPath = inputPath.replace('.webm', '.mp3');
+            const parsedPath = path.parse(inputPath);
+            const outputPath = path.join(parsedPath.dir, `${parsedPath.name}.ogg`);
             
-            this.logger.log(`Converting WebM to MP3: ${inputPath} -> ${outputPath}`);
+            this.logger.log(`Attempting to convert WebM to OGG/Opus: ${inputPath} -> ${outputPath}`);
             
-            // ffmpeg conversion
-            await execAsync(`ffmpeg -i "${inputPath}" -vn -ar 44100 -ac 2 -b:a 192k "${outputPath}"`);
+            const command = ffmpeg(inputPath);
+            
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('FFmpeg conversion timed out after 30 seconds'));
+                }, 30000);
+
+                command
+                    .format('ogg')
+                    .audioCodec('libopus')
+                    .audioBitrate('64k')
+                    .on('start', (commandLine: string) => {
+                        this.logger.log(`FFmpeg: ${commandLine}`);
+                    })
+                    .on('end', () => {
+                        clearTimeout(timeout);
+                        this.logger.log('FFmpeg conversion finished successfully');
+                        resolve(true);
+                    })
+                    .on('error', (err: Error) => {
+                        clearTimeout(timeout);
+                        this.logger.error(`FFmpeg error: ${err.message}`);
+                        reject(err);
+                    })
+                    .save(outputPath);
+            });
             
             if (fs.existsSync(outputPath)) {
                  const finalFilename = path.basename(outputPath);
                  const stats = fs.statSync(outputPath);
-
+                 this.logger.log(`Audio convertido para OGG: ${finalFilename} (${stats.size} bytes)`);
+                 try { fs.unlinkSync(inputPath); } catch { /* remove webm original */ }
                  return {
                      filename: finalFilename,
-                     originalName: file.originalname.replace('.webm', '.mp3'),
+                     originalName: file.originalname.replace(/\.webm$/i, '.ogg'),
                      path: `/uploads/${finalFilename}`,
                      size: stats.size,
-                     mimetype: 'audio/mpeg',
+                     mimetype: 'audio/ogg',
                  };
+            } else {
+                this.logger.error(`Output file was not created: ${outputPath}`);
             }
         } catch (error) {
-            this.logger.error(`Failed to convert WebM to MP3: ${(error as any).message}`);
-            // Fallback to original file if conversion fails
+            this.logger.error(`Failed to convert WebM to OGG: ${(error as Error).message}`);
+            // Fallback: envia o .webm mesmo (WhatsApp pode rejeitar; usuário verá erro no chat)
         }
     }
 

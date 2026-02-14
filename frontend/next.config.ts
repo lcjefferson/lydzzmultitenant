@@ -7,6 +7,8 @@ const buildDate = new Date().toLocaleDateString('pt-BR', {
   year: 'numeric'
 });
 
+const backendUrl = process.env.BACKEND_URL || 'http://127.0.0.1:3001';
+
 const nextConfig: NextConfig = {
   output: 'standalone',
   env: {
@@ -15,10 +17,9 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      {
-        source: '/uploads/:path*',
-        destination: 'http://backend:3000/uploads/:path*',
-      },
+      { source: '/api/:path*', destination: `${backendUrl}/api/:path*` },
+      { source: '/uploads/:path*', destination: `${backendUrl}/uploads/:path*` },
+      { source: '/socket.io/:path*', destination: `${backendUrl}/socket.io/:path*` },
     ];
   },
 };

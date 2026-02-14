@@ -7,3 +7,4 @@ node_modules/.cache/
 dist/
 uploads/
 create_admin.js
+backend.log

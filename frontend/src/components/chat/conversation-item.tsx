@@ -50,7 +50,7 @@ export function ConversationItem({
             onClick={onClick}
             aria-label={`Conversa com ${contactName}. ${unreadCount && unreadCount > 0 ? `${unreadCount} mensagens não lidas.` : ''}`}
             className={cn(
-                'w-full p-3 flex items-center gap-3 hover:bg-white transition-colors border-b border-white/10 text-left group relative',
+                'w-full p-3 py-4 sm:py-3 flex items-center gap-3 hover:bg-white active:bg-white/80 transition-colors border-b border-white/10 text-left group relative min-h-[64px] sm:min-h-0',
                 isSelected && 'bg-white',
                 !isSelected && unreadCount && unreadCount > 0 && 'bg-[#2a3942] border-l-4 border-l-[#00a884]'
             )}

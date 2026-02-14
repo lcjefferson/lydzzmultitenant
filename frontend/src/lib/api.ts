@@ -49,9 +49,6 @@ class ApiService {
     constructor() {
         this.api = axios.create({
             baseURL: API_URL,
-            headers: {
-                'Content-Type': 'application/json',
-            },
         });
 
         // Request interceptor to add auth token
@@ -364,12 +361,17 @@ class ApiService {
         const formData = new FormData();
         formData.append('file', file);
         const endpoint = file.type.startsWith('image/') ? '/upload/image' : '/upload/file';
-        // Let the browser set the Content-Type with boundary automatically
-        const response = await this.api.post<{ path: string; filename: string; originalName: string; mimetype: string }>(endpoint, formData, {
-            headers: {
-                'Content-Type': undefined,
-            } as any,
-        });
+        
+        const response = await this.api.post<{ path: string; filename: string; originalName: string; mimetype: string }>(
+            endpoint, 
+            formData, 
+            {
+                headers: {
+                    // Do NOT set Content-Type manually, let Axios handle it with FormData
+                    // This ensures the boundary is correctly added
+                },
+            }
+        );
         return response.data;
     }
 

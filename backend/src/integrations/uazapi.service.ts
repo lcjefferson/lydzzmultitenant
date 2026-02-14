@@ -111,13 +111,18 @@ export class UazapiService {
   ): Promise<boolean> {
     try {
       const baseUrl = apiUrl || this.apiUrl;
-      const url = `${baseUrl}/send/media`;
+      let url = `${baseUrl}/send/media`;
       
       // Sanitize number only for WhatsApp
       const cleanNumber = channelType === 'whatsapp' ? to.replace(/\D/g, '') : to;
 
       let fileToSend = mediaUrl;
       const appUrl = this.configService.get<string>('APP_URL');
+
+      // Check if it's an audio file that needs special PTT (Push To Talk) treatment
+      const isAudio = mediaType === 'audio' || (fileName && fileName.toLowerCase().endsWith('.webm'));
+      const endpoint = isAudio ? 'ptt' : 'media';
+      url = `${baseUrl}/send/${endpoint}`;
 
       // Attempt to convert local file URL to Base64 to bypass ngrok/network issues
       if (appUrl && mediaUrl.startsWith(appUrl)) {
@@ -143,7 +148,7 @@ export class UazapiService {
       
       const payload: any = {
         number: cleanNumber,
-        type: mediaType,
+        type: isAudio ? 'audio' : mediaType,
         file: fileToSend,
       };
 

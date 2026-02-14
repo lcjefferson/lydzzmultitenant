@@ -4,7 +4,8 @@
 SERVER_USER="root"
 SERVER_HOST="72.60.154.65"
 SERVER_PORT="22" # Default SSH port
-DEST_DIR="~/lydzzmultitenant"
+# Usar caminho absoluto para evitar problemas do rsync com ~
+DEST_DIR="/root/lydzzmultitenant"
 
 # Colors
 GREEN='\033[0;32m'
@@ -49,9 +50,19 @@ else
     exit 1
 fi
 
-# 1. Create directory on server
+# SSH/SCP options (evita prompt de host key, timeout)
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -p $SERVER_PORT"
+SCP_OPTS="-P $SERVER_PORT -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30"
+
+# 1. Test SSH connection and create directory
+echo -e "${YELLOW}Testing SSH connection...${NC}"
+if ! ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "echo OK"; then
+    echo -e "${RED}SSH connection failed. Check credentials and server.${NC}"
+    exit 1
+fi
+
 echo -e "${YELLOW}Creating remote directory...${NC}"
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"
 
 # 2. Sync files
 # Using -I to ignore times and force update if size differs, ensuring changes are sent.
@@ -60,7 +71,8 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "mkdir -p $DEST_DIR"
 echo -e "${YELLOW}Syncing files...${NC}"
 
 if command -v rsync &> /dev/null; then
-    rsync -avz -I --delete -e "ssh -p $SERVER_PORT" \
+    echo -e "${YELLOW}Rsync: ./ -> $SERVER_USER@$SERVER_HOST:$DEST_DIR/${NC}"
+    rsync -avz -I --delete -e "ssh $SSH_OPTS" \
         --exclude 'node_modules' \
         --exclude '.git' \
         --exclude '.next' \
@@ -71,8 +83,9 @@ if command -v rsync &> /dev/null; then
         --exclude 'redis_data' \
         ./ $SERVER_USER@$SERVER_HOST:$DEST_DIR/
     
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Rsync failed. Aborting.${NC}"
+    RSYNC_EXIT=$?
+    if [ $RSYNC_EXIT -ne 0 ]; then
+        echo -e "${RED}Rsync failed (exit $RSYNC_EXIT). Often caused by SSH auth. Try: ssh $SERVER_USER@$SERVER_HOST${NC}"
         exit 1
     fi
 else
@@ -99,7 +112,7 @@ else
     
     # Upload tarball
     echo -e "${YELLOW}Uploading package...${NC}"
-    scp -P $SERVER_PORT $TAR_FILE $SERVER_USER@$SERVER_HOST:$DEST_DIR/
+    scp $SCP_OPTS $TAR_FILE $SERVER_USER@$SERVER_HOST:$DEST_DIR/
     
     if [ $? -ne 0 ]; then
         echo -e "${RED}SCP failed. Aborting.${NC}"
@@ -109,7 +122,7 @@ else
     
     # Extract on server
     echo -e "${YELLOW}Extracting on server...${NC}"
-    ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "cd $DEST_DIR && tar -xzf $TAR_FILE && rm $TAR_FILE"
+    ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "cd $DEST_DIR && tar -xzf $TAR_FILE && rm $TAR_FILE"
     
     # Cleanup local
     rm -f $TAR_FILE
@@ -118,14 +131,14 @@ fi
 # 3. Handle Environment Variables
 if [ -f .env.prod ]; then
     echo -e "${YELLOW}Uploading .env.prod as .env...${NC}"
-    scp -P $SERVER_PORT .env.prod $SERVER_USER@$SERVER_HOST:$DEST_DIR/.env
+    scp $SCP_OPTS .env.prod $SERVER_USER@$SERVER_HOST:$DEST_DIR/.env
 else
     echo -e "${YELLOW}WARNING: .env.prod not found. Please ensure .env exists on the server.${NC}"
 fi
 
 # 3.4 Setup Swap Memory (Prevent OOM Killer during build)
 echo -e "${YELLOW}Configuring Swap Memory (4GB)...${NC}"
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "
     if [ ! -f /swapfile ]; then
         echo 'Creating 4GB swapfile...'
         fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
@@ -142,12 +155,12 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
 
 # 3.4.1 Optimize Docker Network (Disable IPv6 & Fix DNS)
 echo -e "${YELLOW}Optimizing Docker Network...${NC}"
-scp -P $SERVER_PORT daemon.json $SERVER_USER@$SERVER_HOST:/etc/docker/daemon.json
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "systemctl restart docker"
+scp $SCP_OPTS daemon.json $SERVER_USER@$SERVER_HOST:/etc/docker/daemon.json
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "systemctl restart docker"
 
 # 3.5 Setup Firewall (UFW) - Fix for connection timeouts
 echo -e "${YELLOW}Configuring Firewall (UFW) to allow ports...${NC}"
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "
     if command -v ufw >/dev/null 2>&1; then
         echo 'UFW detected, configuring rules...'
         ufw allow 22/tcp
@@ -167,7 +180,7 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
 
 # 3.6 Update Nginx Configuration
 echo -e "${YELLOW}Updating Nginx configuration...${NC}"
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "
     # Install Certbot if not present
     if ! command -v certbot &> /dev/null; then
         apt-get update
@@ -175,13 +188,13 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
     fi
 "
 
-scp -P $SERVER_PORT nginx.conf $SERVER_USER@$SERVER_HOST:/etc/nginx/sites-available/default
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "nginx -t && systemctl reload nginx"
+scp $SCP_OPTS nginx.conf $SERVER_USER@$SERVER_HOST:/etc/nginx/sites-available/default
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "nginx -t && systemctl reload nginx"
 
 # 4. Build and Start Containers
 echo -e "${YELLOW}Building and starting containers...${NC}"
 # Force rebuild of frontend and backend to pick up new code/version
-ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "
     cd $DEST_DIR
     echo 'Current directory content:'
     ls -la frontend/package.json
@@ -203,4 +216,4 @@ ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST "
 "
 
 echo -e "${GREEN}=== Deployment Complete! ===${NC}"
-echo -e "Check status with: ssh -p $SERVER_PORT $SERVER_USER@$SERVER_HOST 'cd ~/lydzzmultitenant && docker compose -f docker-compose.prod.yml ps'"
+echo -e "Check status with: ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST 'cd $DEST_DIR && docker compose -f docker-compose.prod.yml ps'"

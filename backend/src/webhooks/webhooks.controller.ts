@@ -50,7 +50,7 @@ export class WebhooksController {
     @Query('hub.challenge') challenge: string,
   ) {
     const defaultToken =
-      process.env.WHATSAPP_VERIFY_TOKEN || 'smarterchat_verify_token';
+      process.env.WHATSAPP_VERIFY_TOKEN || 'lydzz_verify_token';
     let verifyToken = defaultToken;
     const channel = await this.prisma.channel.findFirst({
       where: { type: 'whatsapp' },
@@ -198,6 +198,7 @@ export class WebhooksController {
   async handleWhatsAppWebhook(
     @Body()
     payload: {
+      object?: string;
       entry?: Array<{
         changes?: Array<{
           value?: {
@@ -207,20 +208,43 @@ export class WebhooksController {
               id?: string;
               timestamp?: string;
             }>;
+            statuses?: unknown[];
+            metadata?: { phone_number_id?: string };
           };
         }>;
       }>;
     },
   ) {
     try {
-      this.logger.log('Incoming WhatsApp webhook');
+      if (!payload?.entry?.length) {
+        this.logger.warn('WhatsApp webhook POST: payload missing entry, returning 200');
+        return { status: 'ok' };
+      }
+
+      const value = payload.entry[0]?.changes?.[0]?.value;
+      const hasMessages = value?.messages?.length;
+      const hasStatuses = value?.statuses?.length;
+      this.logger.log(
+        `WhatsApp webhook POST | object=${payload.object ?? '?'} | messages=${hasMessages ?? 0} | statuses=${hasStatuses ?? 0}`,
+      );
+
+      if (hasStatuses && !hasMessages) {
+        return { status: 'ok', description: 'status_update' };
+      }
+
       const incomingMessage =
         this.whatsAppService.parseIncomingMessage(payload);
 
       if (!incomingMessage) {
-        this.logger.warn('Incoming WhatsApp webhook ignored: no message');
+        this.logger.warn(
+          'WhatsApp webhook ignored: no message in payload (entry/changes/value/messages)',
+        );
         return { status: 'ignored' };
       }
+
+      this.logger.log(
+        `WhatsApp inbound from=${incomingMessage.from} phoneNumberId=${incomingMessage.phoneNumberId ?? 'n/a'} type=${incomingMessage.type}`,
+      );
 
       const activeChannels = await this.prisma.channel.findMany({
         where: { type: 'whatsapp' },
@@ -229,12 +253,14 @@ export class WebhooksController {
 
       let channel = activeChannels[0] || null;
       if (incomingMessage.phoneNumberId) {
+        const incomingId = String(incomingMessage.phoneNumberId).trim();
         const matched = activeChannels.find((ch) => {
           const cfg =
             typeof (ch as any).config === 'object' && (ch as any).config
               ? ((ch as any).config as { phoneNumberId?: string })
               : undefined;
-          return cfg?.phoneNumberId === incomingMessage.phoneNumberId;
+          const channelId = cfg?.phoneNumberId != null ? String(cfg.phoneNumberId).trim() : '';
+          return channelId === incomingId;
         });
         channel = matched || channel;
       }
@@ -377,7 +403,7 @@ export class WebhooksController {
         }
       }
 
-      await this.messagesService.create({
+      const created = await this.messagesService.create({
         conversationId: conversation.id,
         content: incomingMessage.message,
         senderType: 'contact',
@@ -385,7 +411,7 @@ export class WebhooksController {
         attachments,
       });
       this.logger.log(
-        `Inbound message persisted: conversation=${conversation.id} type=${mappedType}`,
+        `Inbound message persisted: conversation=${conversation.id} messageId=${created.id} type=${mappedType}`,
       );
 
       return { status: 'success' };
