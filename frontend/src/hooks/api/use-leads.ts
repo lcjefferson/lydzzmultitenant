@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CreateLeadDto, UpdateLeadDto } from '@/types/api';
 import { toast } from 'sonner';
@@ -12,6 +12,7 @@ export function useLeads(filters?: {
     return useQuery({
         queryKey: ['leads', filters],
         queryFn: () => api.getLeads(filters),
+        placeholderData: keepPreviousData,
     });
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,10 +14,11 @@ import { useAuth } from '@/contexts/auth-context';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useUpdateUser } from '@/hooks/api/use-users';
+import { toast } from 'sonner';
 import type { UpdateUserDto, User } from '@/types/api';
 
 export default function SettingsPage() {
-    const { user } = useAuth();
+    const { user, setUser } = useAuth();
     const isAdmin = String(user?.role || '').toLowerCase() === 'admin';
     const usersQuery = useQuery({
         queryKey: ['users'],
@@ -29,6 +30,15 @@ export default function SettingsPage() {
     const [newUser, setNewUser] = useState({ name: '', email: '', password: '', role: 'consultant' as 'admin' | 'manager' | 'consultant' });
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [editForm, setEditForm] = useState<UpdateUserDto>({});
+
+    // Profile tab: current user's editable fields
+    const [profileForm, setProfileForm] = useState({ name: '', email: '', password: '' });
+    const [profileSaving, setProfileSaving] = useState(false);
+    useEffect(() => {
+        if (user) {
+            setProfileForm({ name: user.name || '', email: user.email || '', password: '' });
+        }
+    }, [user?.id, user?.name, user?.email]);
 
     const handleEditClick = (u: User) => {
         setEditingUser(u);
@@ -52,6 +62,28 @@ export default function SettingsPage() {
         } catch {}
     };
 
+    const handleSaveProfile = async () => {
+        if (!user) return;
+        setProfileSaving(true);
+        try {
+            const data: { name?: string; email?: string; password?: string } = {
+                name: profileForm.name.trim() || undefined,
+                email: profileForm.email.trim() || undefined,
+            };
+            if (profileForm.password.trim()) data.password = profileForm.password.trim();
+            const updated = await api.updateMyProfile(data);
+            setUser({ ...user, name: updated.name, email: updated.email });
+            setProfileForm((prev) => ({ ...prev, password: '' }));
+            toast.success('Perfil atualizado com sucesso.');
+        } catch (err: unknown) {
+            const e = err as { response?: { data?: { message?: string | string[] } } };
+            const msg = e.response?.data?.message;
+            toast.error(Array.isArray(msg) ? msg.join(', ') : msg || 'Erro ao salvar perfil.');
+        } finally {
+            setProfileSaving(false);
+        }
+    };
+
     return (
         <div>
             <Header title="Configurações" description="Gerencie suas preferências e conta" />
@@ -73,34 +105,47 @@ export default function SettingsPage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex items-center gap-4">
-                                    <Avatar fallback="JS" size="lg" />
-                                    <Button variant="secondary" className="text-white bg-slate-800 hover:bg-slate-700">Alterar Foto</Button>
+                                    <Avatar fallback={user?.name?.slice(0, 2).toUpperCase() || 'U'} size="lg" />
+                                    <Button variant="secondary" className="text-white bg-slate-800 hover:bg-slate-700" disabled>Alterar Foto</Button>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-white">Nome Completo</label>
-                                        <Input defaultValue="João Silva" className="bg-slate-800 border-slate-700 text-white" />
+                                        <Input
+                                            value={profileForm.name}
+                                            onChange={(e) => setProfileForm((p) => ({ ...p, name: e.target.value }))}
+                                            className="bg-slate-800 border-slate-700 text-white"
+                                            placeholder="Seu nome"
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-white">Email</label>
-                                        <Input type="email" defaultValue="joao@empresa.com" className="bg-slate-800 border-slate-700 text-white" />
+                                        <Input
+                                            type="email"
+                                            value={profileForm.email}
+                                            onChange={(e) => setProfileForm((p) => ({ ...p, email: e.target.value }))}
+                                            className="bg-slate-800 border-slate-700 text-white"
+                                            placeholder="seu@email.com"
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-white">Telefone</label>
-                                        <Input defaultValue="+55 11 99999-9999" className="bg-slate-800 border-slate-700 text-white" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-medium text-white">Cargo</label>
-                                        <Input defaultValue="Admin" className="bg-slate-800 border-slate-700 text-white" />
+                                    <div className="space-y-2 md:col-span-2">
+                                        <label className="text-sm font-medium text-white">Nova senha (deixe em branco para não alterar)</label>
+                                        <Input
+                                            type="password"
+                                            value={profileForm.password}
+                                            onChange={(e) => setProfileForm((p) => ({ ...p, password: e.target.value }))}
+                                            className="bg-slate-800 border-slate-700 text-white"
+                                            placeholder="Mínimo 6 caracteres"
+                                        />
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
                         <div className="flex justify-end">
-                            <Button>
+                            <Button onClick={handleSaveProfile} disabled={profileSaving}>
                                 <Save className="h-4 w-4" />
-                                Salvar Alterações
+                                {profileSaving ? 'Salvando...' : 'Salvar Alterações'}
                             </Button>
                         </div>
                     </TabsContent>

@@ -1,8 +1,9 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useTransition, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { useNavigation } from '@/contexts/navigation-context';
 import {
     LayoutDashboard,
     MessageSquare,
@@ -16,9 +17,10 @@ import {
     ChevronRight,
     LogOut,
     GitBranch,
+    Send,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/auth-context';
 import { useConversations } from '@/hooks/api/use-conversations';
 import pkg from '../../../package.json';
@@ -41,6 +43,12 @@ const navigation = [
         ],
     },
     {
+        title: 'Campanhas',
+        items: [
+            { name: 'Disparos em massa', href: '/broadcast', icon: Send },
+        ],
+    },
+    {
         title: 'Configuração',
         items: [
             { name: 'Agentes', href: '/agents', icon: Bot },
@@ -58,10 +66,17 @@ const navigation = [
 
 export function Sidebar({ className, onClose }: { className?: string; onClose?: () => void }) {
     const pathname = usePathname();
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const { setNavigating } = useNavigation();
     const [collapsed, setCollapsed] = useState(false);
     const { user, logout } = useAuth();
     const roleLabel = typeof user?.role === 'string' ? user.role : 'user';
     const { data: conversations } = useConversations();
+
+    useEffect(() => {
+        setNavigating(isPending);
+    }, [isPending, setNavigating]);
 
     const role = (typeof user?.role === 'string' ? user.role : 'user').toLowerCase();
     
@@ -86,7 +101,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
             return ['/dashboard', '/conversations', '/leads', '/pipeline'].includes(href);
         }
         if (role === 'consultant' || role === 'manager') {
-            return ['/dashboard', '/conversations', '/leads', '/pipeline', '/chat'].includes(href);
+            return ['/dashboard', '/conversations', '/leads', '/pipeline', '/chat', '/broadcast'].includes(href);
         }
         return ['/dashboard', '/conversations', '/leads'].includes(href);
     };
@@ -145,13 +160,21 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
                                     badgeValue = item.badge;
                                 }
 
+                                const handleNavClick = () => {
+                                    onClose?.();
+                                    if (pathname === item.href) return;
+                                    startTransition(() => {
+                                        router.push(item.href);
+                                    });
+                                };
+
                                 return (
-                                    <Link
+                                    <button
                                         key={item.href}
-                                        href={item.href}
-                                        onClick={onClose}
+                                        type="button"
+                                        onClick={handleNavClick}
                                         className={cn(
-                                            'group flex items-center text-sm font-medium transition-all duration-200',
+                                            'group flex items-center text-sm font-medium transition-all duration-200 w-full text-left',
                                             collapsed 
                                                 ? 'justify-center w-10 h-10 mx-auto rounded-lg p-0' 
                                                 : 'gap-3 px-3 py-2 rounded-xl w-full',
@@ -175,7 +198,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
                                                 {badgeValue}
                                             </span>
                                         )}
-                                    </Link>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -186,10 +209,15 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
             {/* User Profile */}
             <div className="p-4 border-t border-white/10 space-y-2">
                 {role === 'admin' && (
-                    <Link
-                        href="/settings"
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (pathname !== '/settings') {
+                                startTransition(() => router.push('/settings'));
+                            }
+                        }}
                         className={cn(
-                            'flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group',
+                            'flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group w-full text-left',
                             collapsed && 'justify-center'
                         )}
                     >
@@ -201,7 +229,7 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
                             </div>
                         )}
                         <Settings className={cn('h-4 w-4 text-muted-foreground group-hover:text-cyan-400 transition-colors', collapsed && 'hidden')} />
-                    </Link>
+                    </button>
                 )}
 
                 <button

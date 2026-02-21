@@ -64,6 +64,7 @@ export class WhatsAppService {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
+          timeout: 15000, // 15s - avoid hanging if Meta API is slow
         },
       );
 
@@ -183,6 +184,7 @@ export class WhatsAppService {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
+          timeout: 20000, // 20s for media uploads
         },
       );
 
@@ -232,6 +234,7 @@ export class WhatsAppService {
     try {
       const response = await axios.get(`${this.apiUrl}/${mediaId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 10000, // 10s - don't block webhook response
       });
       const data = response.data as {
         url?: string;
@@ -246,6 +249,35 @@ export class WhatsAppService {
         `Failed to get media info: ${err.message ?? 'unknown'}`,
       );
       return null;
+    }
+  }
+
+  /**
+   * List approved message templates for a WhatsApp Business Account (for broadcast).
+   * Requires WABA ID in channel config (wabaId) and access token with whatsapp_business_management.
+   */
+  async listMessageTemplates(
+    wabaId: string,
+    accessToken: string,
+  ): Promise<Array<{ name: string; language: string; status: string; components?: unknown }>> {
+    try {
+      const cleanWabaId = String(wabaId).replace(/\D/g, '') || wabaId;
+      const response = await axios.get<{ data?: Array<{ name: string; language: string; status: string; components?: unknown }> }>(
+        `${this.apiUrl}/${cleanWabaId}/message_templates`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          timeout: 15000,
+        },
+      );
+      const list = response.data?.data ?? [];
+      return list.filter((t) => t.status === 'APPROVED');
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        this.logger.error(`Failed to list templates: ${error.response?.status} ${JSON.stringify(error.response?.data)}`);
+      } else {
+        this.logger.error(`Failed to list templates: ${(error as Error).message}`);
+      }
+      return [];
     }
   }
 

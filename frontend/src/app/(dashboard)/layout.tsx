@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { RouteGuard } from '@/components/route-guard';
 import { useAuth } from '@/contexts/auth-context';
+import { useNavigation } from '@/contexts/navigation-context';
 import { Menu, X } from 'lucide-react';
 
 export default function DashboardLayout({
@@ -12,6 +13,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const { user } = useAuth();
+    const { isNavigating } = useNavigation();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
@@ -22,7 +24,7 @@ export default function DashboardLayout({
 
     return (
         <RouteGuard>
-            <div className="flex h-screen overflow-hidden bg-white">
+            <div className="flex h-screen overflow-hidden bg-white relative">
                 {/* Desktop Sidebar */}
                 <div className="hidden md:flex">
                     <Sidebar />
@@ -41,6 +43,13 @@ export default function DashboardLayout({
                                 <X className="h-6 w-6" />
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {/* Barra de progresso ao trocar de rota */}
+                {isNavigating && (
+                    <div className="absolute top-0 left-0 right-0 z-50 h-0.5 bg-primary/20 overflow-hidden">
+                        <div className="h-full w-1/3 bg-[#00a884] animate-nav-progress" />
                     </div>
                 )}
 

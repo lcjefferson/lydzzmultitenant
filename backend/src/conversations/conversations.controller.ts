@@ -56,6 +56,11 @@ export class ConversationsController {
     return this.conversationsService.markAsRead(id, organizationId);
   }
 
+  @Patch(':id/unread')
+  markAsUnread(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+    return this.conversationsService.markAsUnread(id, organizationId);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
     return this.conversationsService.remove(id, organizationId);

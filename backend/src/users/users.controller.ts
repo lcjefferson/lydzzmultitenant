@@ -5,6 +5,7 @@ import {
   Body,
   Param,
   Put,
+  Patch,
   Delete,
   UseGuards,
   Query,
@@ -12,6 +13,7 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -51,6 +53,15 @@ export class UsersController {
     @GetUser('organizationId') organizationId: string,
   ) {
     return this.usersService.search(q, organizationId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  async updateMe(
+    @Body() dto: UpdateMyProfileDto,
+    @GetUser('id') userId: string,
+  ) {
+    return this.usersService.updateMyProfile(userId, dto);
   }
 
   @UseGuards(JwtAuthGuard)

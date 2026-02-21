@@ -14,12 +14,14 @@ interface AuthContextType {
     register: (data: RegisterDto) => Promise<void>;
     logout: () => Promise<void>;
     refreshToken: () => Promise<void>;
+    /** Update user in context and localStorage (e.g. after profile save). */
+    setUser: (user: AuthResponse['user'] | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<AuthResponse['user'] | null>(null);
+    const [user, setUserState] = useState<AuthResponse['user'] | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
 
@@ -38,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             setIsLoading(true);
             const response = await api.login(data);
-            setUser(response.user);
+            setUserState(response.user);
             toast.success('Login realizado com sucesso!');
             // Use window.location instead of router.push to ensure full page reload
             // This ensures the RouteGuard picks up the new auth state
@@ -59,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setIsLoading(true);
             console.log('Attempting registration with data:', { ...data, password: '***' });
             const response = await api.register(data);
-            setUser(response.user);
+            setUserState(response.user);
             toast.success('Cadastro realizado com sucesso!');
             // Use window.location instead of router.push to ensure full page reload
             window.location.href = '/dashboard';
@@ -98,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } finally {
             // Clear local state regardless of API call success
             api.logout();
-            setUser(null);
+            setUserState(null);
             toast.success('Logout realizado com sucesso!');
             router.push('/login');
         }
@@ -133,6 +135,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return () => clearInterval(interval);
     }, [user, refreshToken]);
 
+    const setUser = useCallback((next: AuthResponse['user'] | null) => {
+        setUserState(next);
+        if (typeof window !== 'undefined') {
+            if (next) localStorage.setItem('user', JSON.stringify(next));
+            else localStorage.removeItem('user');
+        }
+    }, []);
+
     const isAuthed = !!user && (typeof window !== 'undefined' ? !!localStorage.getItem('accessToken') : false);
 
     return (
@@ -145,6 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 register,
                 logout,
                 refreshToken,
+                setUser,
             }}
         >
             {children}

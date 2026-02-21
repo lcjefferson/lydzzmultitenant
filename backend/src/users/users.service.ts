@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateMyProfileDto } from './dto/update-my-profile.dto';
 import * as bcrypt from 'bcrypt';
 import { User, Prisma } from '@prisma/client';
 
@@ -90,6 +91,21 @@ export class UsersService {
       data.password = await bcrypt.hash(dto.password, 10);
     }
     return this.prisma.user.update({ where: { id }, data });
+  }
+
+  /** Update current user's own profile (name, email, password only). No role change. */
+  async updateMyProfile(userId: string, dto: UpdateMyProfileDto): Promise<User> {
+    if (dto.email) {
+      const existing = await this.prisma.user.findFirst({
+        where: { email: dto.email, id: { not: userId } },
+      });
+      if (existing) throw new BadRequestException('Email já está em uso');
+    }
+    const data: Prisma.UserUpdateInput = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.email !== undefined) data.email = dto.email;
+    if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
+    return this.prisma.user.update({ where: { id: userId }, data });
   }
 
   async remove(id: string, organizationId?: string): Promise<User> {

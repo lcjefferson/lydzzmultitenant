@@ -15,6 +15,8 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_BUILD_DATE: buildDate,
   },
+  reactStrictMode: true,
+  poweredByHeader: false,
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${backendUrl}/api/:path*` },

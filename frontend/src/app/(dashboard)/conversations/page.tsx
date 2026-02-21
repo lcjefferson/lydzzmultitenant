@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X, Mic, Square, RefreshCw, ArrowLeft } from 'lucide-react';
-import { useConversations, useUpdateConversation, useMarkConversationAsRead } from '@/hooks/api/use-conversations';
+import { useConversations, useUpdateConversation, useMarkConversationAsRead, useMarkConversationAsUnread } from '@/hooks/api/use-conversations';
 import { useMessages, useCreateMessage } from '@/hooks/api/use-messages';
 import { useSocket } from '@/hooks/use-socket';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,9 +20,6 @@ import { useLead, useLeadComments, useAddLeadComment, useUpdateLead, useDelegate
 import { useAuth } from '@/contexts/auth-context';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 // Mock Data
 const MOCK_CONVERSATION = {
@@ -140,11 +137,14 @@ export default function ConversationsPage() {
     const [filter, setFilter] = useState<'all' | 'unread' | 'unanswered'>('all');
     const isMobile = useIsMobile();
     const markAsRead = useMarkConversationAsRead();
+    const markAsUnread = useMarkConversationAsUnread();
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const messagesContainerRef = useRef<HTMLDivElement>(null);
     const messageInputRef = useRef<HTMLTextAreaElement>(null);
     const queryClient = useQueryClient();
     const [showLeadModal, setShowLeadModal] = useState(false);
+    const [showRightPanel, setShowRightPanel] = useState(true);
+    const [showConversationMenu, setShowConversationMenu] = useState(false);
     const { user } = useAuth();
     const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -340,34 +340,78 @@ export default function ConversationsPage() {
         }
     }, [effectiveSelectedId, joinConversation, leaveConversation, conversations, markAsRead]);
 
-    // Listen for new messages via WebSocket
+    // Listen for new messages via WebSocket (tempo real no omnichannel)
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleNewMessage = (message: any) => {
-            console.log('📨 New message received via WebSocket:', message);
+            const convId = message.conversationId ?? message.conversation?.id;
+            const isForCurrent = effectiveSelectedId && convId === effectiveSelectedId;
 
-            // Invalidate messages query to refetch
+            // Atualização otimista: exibe a mensagem na hora na conversa atual
+            if (isForCurrent && convId) {
+                queryClient.setQueryData(
+                    ['messages', convId],
+                    (old: typeof messages | undefined) => {
+                        const list = Array.isArray(old) ? old : [];
+                        const hasId = message.id && list.some((m: { id: string }) => m.id === message.id);
+                        if (hasId) return list;
+                        const normalized = {
+                            id: message.id,
+                            conversationId: convId,
+                            content: message.content ?? '',
+                            senderType: message.senderType ?? 'contact',
+                            type: message.type ?? 'text',
+                            attachments: message.attachments,
+                            createdAt: message.createdAt ?? new Date(),
+                            updatedAt: message.updatedAt ?? new Date(),
+                        };
+                        return [...list, normalized];
+                    }
+                );
+            }
+
             queryClient.invalidateQueries({ queryKey: ['messages', effectiveSelectedId] });
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
 
-            // If the message is for the current conversation, mark as read again
-            // We verify if the message is NOT from the current user (senderType !== 'user') to avoid redundant calls, 
-            // though the backend only increments for 'contact'.
-            if (effectiveSelectedId && message.conversationId === effectiveSelectedId) {
-                // Small delay to ensure the user "sees" it or simply to allow the previous query invalidation to settle?
-                // Actually we just want to reset the counter on the server.
+            if (isForCurrent) {
                 markAsRead.mutate(effectiveSelectedId);
             }
         };
 
+        // messageUpdated: atualizar mensagem existente no cache (ex.: anexos)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const handleMessageUpdated = (message: any) => {
+            const convId = message.conversationId ?? message.conversation?.id;
+            if (!convId || !message.id) return;
+            queryClient.setQueryData(
+                ['messages', convId],
+                (old: typeof messages | undefined) => {
+                    const list = Array.isArray(old) ? old : [];
+                    const idx = list.findIndex((m: { id: string }) => m.id === message.id);
+                    if (idx === -1) return list;
+                    const normalized = {
+                        ...list[idx],
+                        ...message,
+                        createdAt: message.createdAt ?? list[idx].createdAt,
+                        updatedAt: message.updatedAt ?? new Date(),
+                    };
+                    const next = [...list];
+                    next[idx] = normalized;
+                    return next;
+                }
+            );
+            queryClient.invalidateQueries({ queryKey: ['messages', convId] });
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        };
+
         onNewMessage(handleNewMessage);
         onMessageCreated(handleNewMessage);
-        onMessageUpdated(handleNewMessage);
+        onMessageUpdated(handleMessageUpdated);
 
         return () => {
             offNewMessage(handleNewMessage);
             offMessageCreated(handleNewMessage);
-            offMessageUpdated(handleNewMessage);
+            offMessageUpdated(handleMessageUpdated);
         };
     }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient, markAsRead]);
 
@@ -555,6 +599,7 @@ export default function ConversationsPage() {
 
         try {
             setIsExporting(true);
+            const XLSX = await import('xlsx');
             const rows = filteredConversations.map((conv) => ({
                 Contato: (conv.lead?.name || conv.contactName || conv.contactIdentifier || 'Contato').trim(),
                 Identificador: conv.contactIdentifier || conv.lead?.email || conv.lead?.phone || '',
@@ -587,7 +632,8 @@ export default function ConversationsPage() {
 
         try {
             setIsExporting(true);
-            const doc = new jsPDF();
+            const [jsPDF, autoTable] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+            const doc = new jsPDF.default();
             const filename = `leads_${getFormattedDateTime()}.pdf`;
 
             doc.text(`Relatório de Conversas - ${new Date().toLocaleString('pt-BR')}`, 14, 15);
@@ -601,7 +647,7 @@ export default function ConversationsPage() {
                 new Date(conv.lastMessageAt).toLocaleString('pt-BR')
             ]);
 
-            autoTable(doc, {
+            autoTable.default(doc, {
                 head: [tableHeaders],
                 body: tableRows,
                 startY: 20,
@@ -766,9 +812,30 @@ export default function ConversationsPage() {
                                 <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 text-xs sm:text-sm h-9" onClick={handleAssignConversation}>
                                     Assumir
                                 </Button>
-                                <button className="p-2 hover:bg-surface rounded-md transition-colors shrink-0" aria-label="Mais opções">
-                                    <MoreVertical className="h-5 w-5" />
-                                </button>
+                                <div className="relative shrink-0">
+                                    <button
+                                        type="button"
+                                        className="p-2 hover:bg-surface rounded-md transition-colors"
+                                        aria-label="Mais opções"
+                                        onClick={() => setShowConversationMenu((v) => !v)}
+                                    >
+                                        <MoreVertical className="h-5 w-5" />
+                                    </button>
+                                    {showConversationMenu && (
+                                        <>
+                                            <div className="fixed inset-0 z-10" aria-hidden onClick={() => setShowConversationMenu(false)} />
+                                            <div className="absolute right-0 top-full mt-1 py-1 w-48 bg-white border border-neutral-200 rounded-lg shadow-lg z-20">
+                                                <button
+                                                    type="button"
+                                                    className="w-full px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+                                                    onClick={() => { markAsUnread.mutate(effectiveSelectedId!); setShowConversationMenu(false); }}
+                                                >
+                                                    Marcar como não lida
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -804,8 +871,8 @@ export default function ConversationsPage() {
                                 onChange={handleFileUpload}
                                 accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
                             />
-                            <div className="flex items-end gap-1.5 sm:gap-2">
-                                <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 min-h-[44px]">
+                                <div className="flex-1 min-w-0 flex items-center">
                                     <textarea
                                         ref={messageInputRef}
                                         value={messageInput}
@@ -817,15 +884,15 @@ export default function ConversationsPage() {
                                             }
                                         }}
                                         placeholder="Digite sua mensagem..."
-                                        className="w-full resize-none bg-white text-neutral-900 border border-neutral-300 rounded-lg px-3 py-2.5 sm:px-4 sm:py-3 focus:outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884] placeholder:text-neutral-400 min-h-[44px] max-h-32 overflow-y-auto text-base"
+                                        className="w-full resize-none bg-white text-neutral-900 border border-neutral-300 rounded-lg px-3 py-2.5 sm:px-4 sm:py-3 focus:outline-none focus:border-[#00a884] focus:ring-1 focus:ring-[#00a884] placeholder:text-neutral-400 min-h-[44px] max-h-32 overflow-y-auto text-base align-middle"
                                         rows={1}
                                         disabled={createMessage.isPending}
                                         autoFocus
                                     />
                                 </div>
-                                <button 
+                                <button
                                     type="button"
-                                    className="p-2.5 sm:p-2 text-neutral-500 hover:text-neutral-700 hover:bg-surface rounded-md transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center sm:min-h-0 sm:min-w-0"
+                                    className="h-10 w-10 flex items-center justify-center shrink-0 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
                                     onClick={() => fileInputRef.current?.click()}
                                     title="Anexar arquivo"
                                 >
@@ -833,13 +900,13 @@ export default function ConversationsPage() {
                                 </button>
                                 <button
                                     type="button"
-                                    className={`p-2.5 sm:p-2 rounded-md transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center sm:min-h-0 sm:min-w-0 ${isRecording ? 'text-red-500 hover:text-red-600 bg-red-50' : 'text-neutral-500 hover:text-neutral-700 hover:bg-surface'}`}
+                                    className={`h-10 w-10 flex items-center justify-center shrink-0 rounded-lg transition-colors ${isRecording ? 'text-red-500 hover:text-red-600 bg-red-50' : 'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100'}`}
                                     onClick={isRecording ? handleStopRecording : handleStartRecording}
                                     title={isRecording ? "Parar e enviar" : "Gravar áudio"}
                                 >
                                     {isRecording ? <Square className="h-5 w-5 fill-current" /> : <Mic className="h-5 w-5" />}
                                 </button>
-                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording} className="bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 min-h-[44px] min-w-[44px] p-0 sm:min-h-0 sm:min-w-0 sm:px-3" aria-label="Enviar">
+                                <Button onClick={handleSendMessage} disabled={createMessage.isPending || isRecording} className="bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 h-10 w-10 p-0" aria-label="Enviar">
                                     <Send className="h-4 w-4" />
                                 </Button>
                             </div>
@@ -851,10 +918,21 @@ export default function ConversationsPage() {
                     </div>
                 )}
 
-                {/* Lead Details - Right Column: hidden on mobile/tablet, visible on xl */}
-                {selectedConversationId && currentConversation && (
-                    <div className="hidden xl:block w-80 border-l border-primary-500/20 bg-white p-6 overflow-y-auto scrollbar-thin text-neutral-900 shrink-0">
-                        <div className="space-y-6">
+                {/* Lead Details - Right Column: hidden on mobile/tablet, visible on xl when showRightPanel */}
+                {selectedConversationId && currentConversation && showRightPanel && (
+                    <div className="hidden xl:block w-80 border-l border-primary-500/20 bg-white overflow-y-auto scrollbar-thin text-neutral-900 shrink-0 flex flex-col">
+                        <div className="sticky top-0 z-10 flex items-center justify-between gap-2 p-3 border-b border-neutral-200 bg-white">
+                            <span className="text-sm font-medium text-neutral-700">Detalhes do contato</span>
+                            <button
+                                type="button"
+                                onClick={() => setShowRightPanel(false)}
+                                className="p-2 rounded-md text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors"
+                                aria-label="Fechar painel"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-6 flex-1">
                             <div className="space-y-4">
                                 <div className="flex items-start justify-between">
                                     <div>
@@ -966,6 +1044,16 @@ export default function ConversationsPage() {
                             </div>
                         </div>
                     </div>
+                )}
+                {selectedConversationId && currentConversation && !showRightPanel && (
+                    <button
+                        type="button"
+                        onClick={() => setShowRightPanel(true)}
+                        className="hidden xl:flex fixed right-4 top-24 z-20 p-2 rounded-lg bg-white border border-neutral-200 shadow-md text-neutral-600 hover:bg-neutral-50"
+                        aria-label="Abrir painel do contato"
+                    >
+                        <Building className="h-5 w-5" />
+                    </button>
                 )}
             </div>
             {showLeadModal && currentConversation?.lead?.id && (

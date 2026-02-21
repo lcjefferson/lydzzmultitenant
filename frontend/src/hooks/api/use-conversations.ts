@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import type { CreateConversationDto, UpdateConversationDto } from '@/types/api';
 import { toast } from 'sonner';
@@ -25,6 +25,7 @@ export function useConversations() {
     return useQuery({
         queryKey: ['conversations'],
         queryFn: () => api.getConversations(),
+        placeholderData: keepPreviousData,
     });
 }
 
@@ -83,6 +84,24 @@ export function useMarkConversationAsRead() {
         },
         onError: (error: unknown) => {
             console.error('Error marking conversation as read:', error);
+        },
+    });
+}
+
+export function useMarkConversationAsUnread() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (id: string) => api.markConversationAsUnread(id),
+        onSuccess: (_, id) => {
+            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            queryClient.invalidateQueries({ queryKey: ['conversations', id] });
+            toast.success('Conversa marcada como não lida');
+        },
+        onError: (error: unknown) => {
+            type ApiErrorResp = { response?: { data?: { message?: string } } };
+            const e = error as ApiErrorResp;
+            toast.error(e.response?.data?.message || 'Erro ao marcar como não lida');
         },
     });
 }

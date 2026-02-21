@@ -5,9 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MessageSquare, Users, Bot } from 'lucide-react';
 import { useDashboardMetrics, useConversationStats, useLeadStats, useContractsReport, useConsultantReport } from '@/hooks/api/use-analytics';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 // Componentes de ícones de arquivo coloridos
 const FileIconCsv = ({ className }: { className?: string }) => (
@@ -68,17 +65,19 @@ export default function AnalyticsPage() {
         URL.revokeObjectURL(url);
     };
 
-    const downloadExcel = (rows: Array<Record<string, unknown>>, filename: string) => {
+    const downloadExcel = async (rows: Array<Record<string, unknown>>, filename: string) => {
+        const XLSX = await import('xlsx');
         const worksheet = XLSX.utils.json_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Relatório");
         XLSX.writeFile(workbook, filename);
     };
 
-    const downloadPDF = (title: string, headers: string[], rows: (string | number)[][], filename: string) => {
-        const doc = new jsPDF();
+    const downloadPDF = async (title: string, headers: string[], rows: (string | number)[][], filename: string) => {
+        const [jsPDF, autoTable] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+        const doc = new jsPDF.default();
         doc.text(title, 14, 15);
-        autoTable(doc, {
+        autoTable.default(doc, {
             head: [headers],
             body: rows,
             startY: 20,

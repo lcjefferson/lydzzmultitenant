@@ -26,9 +26,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 // Componentes de ícones de arquivo coloridos
 const FileIconPdf = ({ className }: { className?: string }) => (
@@ -96,7 +93,8 @@ export default function LeadsPage() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
+            const XLSX = await import('xlsx');
             const bstr = evt.target?.result;
             const wb = XLSX.read(bstr, { type: 'binary' });
             const wsname = wb.SheetNames[0];
@@ -242,6 +240,7 @@ export default function LeadsPage() {
 
         try {
             setIsExporting(true);
+            const XLSX = await import('xlsx');
             const rows = filteredLeads.map((lead) => ({
                 Nome: lead.name,
                 Email: lead.email || '',
@@ -278,7 +277,8 @@ export default function LeadsPage() {
 
         try {
             setIsExporting(true);
-            const doc = new jsPDF();
+            const [jsPDF, autoTable] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+            const doc = new jsPDF.default();
             const filename = `leads_${getFormattedDateTime()}.pdf`;
 
             doc.text(`Relatório de Leads - ${new Date().toLocaleString('pt-BR')}`, 14, 15);
@@ -293,7 +293,7 @@ export default function LeadsPage() {
                 getAssignedName(lead) || '-'
             ]);
 
-            autoTable(doc, {
+            autoTable.default(doc, {
                 head: [tableHeaders],
                 body: tableRows,
                 startY: 20,

@@ -221,6 +221,12 @@ class ApiService {
         return response.data;
     }
 
+    /** Update current user's own profile (name, email, password). No admin required. */
+    async updateMyProfile(data: { name?: string; email?: string; password?: string }): Promise<User> {
+        const response = await this.api.patch<User>('/users/me', data);
+        return response.data;
+    }
+
     async deleteUser(id: string): Promise<void> {
         await this.api.delete(`/users/${id}`);
     }
@@ -325,8 +331,41 @@ class ApiService {
         return response.data;
     }
 
+    async markConversationAsUnread(id: string): Promise<Conversation> {
+        const response = await this.api.patch<Conversation>(`/conversations/${id}/unread`);
+        return response.data;
+    }
+
     async deleteConversation(id: string): Promise<void> {
         await this.api.delete(`/conversations/${id}`);
+    }
+
+    // Broadcast (disparos em massa)
+    async getBroadcastChannels(): Promise<Array<{ id: string; name: string; type: string; provider?: string; config?: unknown; identifier?: string }>> {
+        const response = await this.api.get('/broadcast/channels');
+        return response.data;
+    }
+
+    async getBroadcastTemplates(channelId: string): Promise<Array<{ name: string; language: string; status: string }>> {
+        const response = await this.api.get(`/broadcast/templates?channelId=${encodeURIComponent(channelId)}`);
+        return response.data;
+    }
+
+    async getBroadcastLeadStatuses(): Promise<string[]> {
+        const response = await this.api.get<string[]>('/broadcast/lead-statuses');
+        return response.data;
+    }
+
+    async getBroadcastLeadsByStatuses(statuses: string[]): Promise<Array<{ id: string; name: string; phone: string | null; status: string }>> {
+        const params = new URLSearchParams();
+        statuses.forEach((s) => params.append('statuses', s));
+        const response = await this.api.get(`/broadcast/leads?${params.toString()}`);
+        return response.data;
+    }
+
+    async sendBroadcast(data: { channelId: string; templateName?: string; message?: string; numbers?: string[]; leadStatuses?: string[] }): Promise<{ sent: number; failed: number; errors: string[] }> {
+        const response = await this.api.post<{ sent: number; failed: number; errors: string[] }>('/broadcast/send', data);
+        return response.data;
     }
 
     // Messages

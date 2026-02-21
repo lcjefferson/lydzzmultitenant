@@ -188,7 +188,7 @@ ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "
     fi
 "
 
-scp $SCP_OPTS nginx.conf $SERVER_USER@$SERVER_HOST:/etc/nginx/sites-available/default
+scp $SCP_OPTS nginx_vps.conf $SERVER_USER@$SERVER_HOST:/etc/nginx/sites-available/default
 ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "nginx -t && systemctl reload nginx"
 
 # 4. Build and Start Containers

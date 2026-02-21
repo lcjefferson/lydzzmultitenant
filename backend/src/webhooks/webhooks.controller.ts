@@ -373,34 +373,20 @@ export class WebhooksController {
               ? 'file'
               : 'text';
 
+      // Build attachments without blocking on getMediaInfo (Meta expects fast 200).
+      // Proxy URL is used; media is fetched on-demand when client loads the file.
       let attachments: Record<string, unknown> | undefined;
       if (mappedType !== 'text' && incomingMessage.mediaId) {
-        const cfg =
-          typeof (channel as any).config === 'object' && (channel as any).config
-            ? ((channel as any).config as {
-                phoneNumberId?: string;
-                accessToken?: string;
-              })
-            : undefined;
-        const accessToken =
-          cfg?.accessToken || channel.accessToken || undefined;
-        if (accessToken) {
-          const media = await this.whatsAppService.getMediaInfo(
-            incomingMessage.mediaId,
-            accessToken,
-          );
-          const port = process.env.PORT || 3001;
-          const base =
-            process.env.APP_URL?.replace(/\/$/, '') ||
-            `http://localhost:${port}`;
-          const proxiedUrl = `${base}/api/media/whatsapp/${incomingMessage.mediaId}${incomingMessage.phoneNumberId ? `?phoneNumberId=${encodeURIComponent(incomingMessage.phoneNumberId)}` : ''}`;
-          attachments = {
-            url: proxiedUrl,
-            mimeType: media?.mime_type,
-            mediaId: incomingMessage.mediaId,
-            source: 'whatsapp',
-          };
-        }
+        const port = process.env.PORT || 3001;
+        const base =
+          process.env.APP_URL?.replace(/\/$/, '') ||
+          `http://localhost:${port}`;
+        const proxiedUrl = `${base}/api/media/whatsapp/${incomingMessage.mediaId}${incomingMessage.phoneNumberId ? `?phoneNumberId=${encodeURIComponent(incomingMessage.phoneNumberId)}` : ''}`;
+        attachments = {
+          url: proxiedUrl,
+          mediaId: incomingMessage.mediaId,
+          source: 'whatsapp',
+        };
       }
 
       const created = await this.messagesService.create({
