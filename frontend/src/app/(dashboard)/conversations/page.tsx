@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ConversationItem } from '@/components/chat/conversation-item';
 import { MessageBubble } from '@/components/chat/message-bubble';
-import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, Phone, Building, X, Mic, Square, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, MailPlus, Phone, Building, X, Mic, Square, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useConversations, useUpdateConversation, useMarkConversationAsRead, useMarkConversationAsUnread } from '@/hooks/api/use-conversations';
 import { useMessages, useCreateMessage } from '@/hooks/api/use-messages';
 import { useSocket } from '@/hooks/use-socket';
@@ -740,6 +740,7 @@ export default function ConversationsPage() {
                                         id={conv.id}
                                         contactName={displayName}
                                         contactIdentifier={identifier}
+                                        contactTag={conv.contactTag}
                                         lastMessage={last}
                                         timestamp={new Date(conv.lastMessageAt).toISOString()}
                                         status={conv.status}
@@ -774,7 +775,14 @@ export default function ConversationsPage() {
                                     <ArrowLeft className="h-5 w-5" />
                                 </Button>
                                 <div className="min-w-0 flex-1">
-                                    <h3 className="font-semibold text-neutral-900 truncate text-sm sm:text-base">{currentConversation.contactName || currentConversation.lead?.name || currentConversation.contactIdentifier}</h3>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="font-semibold text-neutral-900 truncate text-sm sm:text-base">{currentConversation.contactName || currentConversation.lead?.name || currentConversation.contactIdentifier}</h3>
+                                        {currentConversation.contactTag && (
+                                            <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-blue-100 text-blue-800 border-0 font-normal shrink-0">
+                                                {currentConversation.contactTag}
+                                            </Badge>
+                                        )}
+                                    </div>
                                     <p className="text-xs sm:text-sm text-neutral-700 truncate">{currentConversation.contactIdentifier || currentConversation.lead?.email || currentConversation.lead?.phone}</p>
                                 </div>
                                 <div className="flex items-center gap-1 text-xs shrink-0">
@@ -809,6 +817,16 @@ export default function ConversationsPage() {
                                 <Badge variant={currentConversation.status === 'active' ? 'success' : 'default'} className="text-xs hidden sm:inline-flex">
                                     {currentConversation.status}
                                 </Badge>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="shrink-0 text-xs sm:text-sm h-9 gap-1.5"
+                                    onClick={() => markAsUnread.mutate(effectiveSelectedId!)}
+                                    title="Marcar como não lida"
+                                >
+                                    <MailPlus className="h-4 w-4" />
+                                    <span className="hidden sm:inline">Não lida</span>
+                                </Button>
                                 <Button size="sm" className="bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 text-xs sm:text-sm h-9" onClick={handleAssignConversation}>
                                     Assumir
                                 </Button>
@@ -945,6 +963,22 @@ export default function ConversationsPage() {
                                             </p>
                                         )}
                                     </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-neutral-500">Tag do contato</p>
+                                    <select
+                                        value={currentConversation.contactTag ?? ''}
+                                        onChange={(e) => {
+                                            const value = e.target.value || null;
+                                            updateConversation.mutate({ id: currentConversation.id, data: { contactTag: value } });
+                                        }}
+                                        className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#00a884] focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+                                        disabled={updateConversation.isPending}
+                                    >
+                                        <option value="">Nenhuma</option>
+                                        <option value="Oficial">Oficial</option>
+                                        <option value="Não oficial">Não oficial</option>
+                                    </select>
                                 </div>
                                 {currentConversation.lead && (
                                     <div className="flex items-center gap-3">

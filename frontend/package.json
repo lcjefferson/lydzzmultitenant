@@ -1,6 +1,6 @@
 {
     "name": "frontend",
-    "version": "0.1.79",
+    "version": "0.1.85",
     "private": true,
     "scripts": {
         "dev": "node generate-build-info.js && next dev",

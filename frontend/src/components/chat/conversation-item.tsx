@@ -8,6 +8,7 @@ interface ConversationItemProps {
     id: string;
     contactName: string;
     contactIdentifier?: string;
+    contactTag?: string | null; // e.g. "Oficial", "Não oficial"
     lastMessage: string;
     timestamp: string;
     status: 'active' | 'waiting' | 'closed';
@@ -28,6 +29,7 @@ const channelIcons: Record<string, any> = {
 export function ConversationItem({
     contactName,
     contactIdentifier,
+    contactTag,
     lastMessage,
     timestamp,
     status,
@@ -80,11 +82,18 @@ export function ConversationItem({
             {/* Content */}
             <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                    <h4 className={cn(
-                        "truncate text-base",
-                        isSelected ? "text-neutral-900 font-semibold" : "text-gray-50 group-hover:text-neutral-900",
-                        !isSelected && unreadCount && unreadCount > 0 ? "font-bold text-white" : "font-semibold"
-                    )}>{contactName}</h4>
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <h4 className={cn(
+                            "truncate text-base",
+                            isSelected ? "text-neutral-900 font-semibold" : "text-gray-50 group-hover:text-neutral-900",
+                            !isSelected && unreadCount && unreadCount > 0 ? "font-bold text-white" : "font-semibold"
+                        )}>{contactName}</h4>
+                        {contactTag && (
+                            <Badge variant="default" className="flex-shrink-0 text-[10px] px-1.5 py-0 bg-neutral-600 text-gray-200 border-0 font-normal hidden sm:inline-flex">
+                                {contactTag}
+                            </Badge>
+                        )}
+                    </div>
                     <span className={cn(
                         "text-xs flex-shrink-0 whitespace-nowrap",
                         isSelected ? "text-neutral-500" : "text-gray-400 group-hover:text-neutral-500",

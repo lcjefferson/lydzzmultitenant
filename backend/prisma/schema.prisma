@@ -154,6 +154,7 @@ model Conversation {
   unreadCount       Int       @default(0)
   contactName       String
   contactIdentifier String    // phone or instagram ID
+  contactTag        String?   // e.g. "Oficial", "Não oficial" to differentiate contact type
   lastMessageAt     DateTime  @default(now())
   closedAt          DateTime?
   metadata          Json?

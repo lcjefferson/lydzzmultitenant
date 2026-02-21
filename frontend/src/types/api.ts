@@ -62,6 +62,7 @@ export interface Conversation {
   id: string;
   contactName: string;
   contactIdentifier: string;
+  contactTag?: string | null; // e.g. "Oficial", "Não oficial"
   status: 'active' | 'waiting' | 'closed';
   unreadCount?: number;
   channelId: string;
@@ -200,6 +201,7 @@ export interface CreateConversationDto {
     contactIdentifier: string;
     channelId: string;
     status?: string;
+    contactTag?: string;
 }
 
 export interface CreateMessageDto {
@@ -236,9 +238,10 @@ export interface CreateUserDto {
 // Update DTOs (Partial of Create DTOs)
 export type UpdateAgentDto = Partial<CreateAgentDto>;
 export type UpdateChannelDto = Partial<CreateChannelDto>;
-export type UpdateConversationDto = Partial<CreateConversationDto> & {
+export type UpdateConversationDto = Omit<Partial<CreateConversationDto>, 'contactTag'> & {
     agentId?: string | null;
     assignedToId?: string | null;
+    contactTag?: string | null;
 };
 export type UpdateLeadDto = Partial<CreateLeadDto>;
 export type UpdateUserDto = Partial<CreateUserDto>;

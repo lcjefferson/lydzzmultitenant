@@ -17,4 +17,8 @@ export class CreateConversationDto {
   @IsOptional()
   @IsEnum(['active', 'waiting', 'closed'])
   status?: string;
+
+  @IsString()
+  @IsOptional()
+  contactTag?: string;
 }

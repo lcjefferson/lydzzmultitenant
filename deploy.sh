@@ -7,6 +7,11 @@ SERVER_PORT="22" # Default SSH port
 # Usar caminho absoluto para evitar problemas do rsync com ~
 DEST_DIR="/root/lydzzmultitenant"
 
+# SSH key (optional): set to your private key path to avoid password prompt.
+# Example: export SSH_KEY=~/.ssh/id_ed25519  or  SSH_KEY=~/.ssh/deploy_key ./deploy.sh
+# If unset, SSH will use default keys from ssh-agent or ~/.ssh/.
+SSH_KEY="${SSH_KEY:-}"
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -52,12 +57,18 @@ fi
 
 # SSH/SCP options (evita prompt de host key, timeout)
 SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -p $SERVER_PORT"
+[ -n "$SSH_KEY" ] && SSH_OPTS="$SSH_OPTS -i $SSH_KEY -o BatchMode=yes"
 SCP_OPTS="-P $SERVER_PORT -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30"
+[ -n "$SSH_KEY" ] && SCP_OPTS="$SCP_OPTS -i $SSH_KEY -o BatchMode=yes"
 
 # 1. Test SSH connection and create directory
 echo -e "${YELLOW}Testing SSH connection...${NC}"
 if ! ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "echo OK"; then
-    echo -e "${RED}SSH connection failed. Check credentials and server.${NC}"
+    echo -e "${RED}SSH connection failed.${NC}"
+    echo -e "${YELLOW}Possible fixes:${NC}"
+    echo "  1) Use an SSH key:  export SSH_KEY=~/.ssh/your_key && ./deploy.sh"
+    echo "  2) Add your public key to the server:  ssh-copy-id -i ~/.ssh/id_ed25519.pub $SERVER_USER@$SERVER_HOST"
+    echo "  3) If you use a key, ensure it's loaded:  ssh-add -l  (then  ssh-add ~/.ssh/your_key)"
     exit 1
 fi
 
