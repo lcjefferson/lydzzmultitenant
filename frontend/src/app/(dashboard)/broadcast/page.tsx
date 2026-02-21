@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { Send, Loader2 } from 'lucide-react';
 
 type ChannelItem = { id: string; name: string; type: string; provider?: string; config?: unknown };
 type TemplateItem = { name: string; language: string; status: string };
+
+const EMOJI_QUICK = ['😀', '👍', '✅', '❤️', '📱', '💬', '🎉', '📞', '⚠️', '✨', '🔥', '🙏', '💪', '👋', '📋'];
 
 export default function BroadcastPage() {
     const [channels, setChannels] = useState<ChannelItem[]>([]);
@@ -23,12 +25,12 @@ export default function BroadcastPage() {
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState<{ sent: number; failed: number; errors: string[] } | null>(null);
+    const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
     const selectedChannel = channels.find((c) => c.id === channelId);
-    const isOfficial = Boolean(
-        (selectedChannel?.provider || '').toLowerCase() === 'whatsapp-official' ||
-        (selectedChannel?.config && typeof selectedChannel.config === 'object' && 'phoneNumberId' in selectedChannel.config)
-    );
+    const provider = (selectedChannel?.provider ?? (typeof selectedChannel?.config === 'object' && selectedChannel?.config !== null ? (selectedChannel.config as { provider?: string }).provider : undefined) ?? '').toString().toLowerCase();
+    const isUazapi = Boolean(channelId && provider === 'uazapi');
+    const isOfficial = Boolean(channelId && provider === 'whatsapp-official');
 
     useEffect(() => {
         api.getBroadcastChannels().then(setChannels).catch(() => toast.error('Erro ao carregar canais'));
@@ -36,7 +38,7 @@ export default function BroadcastPage() {
     }, []);
 
     useEffect(() => {
-        if (!channelId) {
+        if (!channelId || !isOfficial) {
             setTemplates([]);
             setTemplateName('');
             return;
@@ -47,7 +49,24 @@ export default function BroadcastPage() {
                 setTemplateName(list[0]?.name || '');
             })
             .catch(() => setTemplates([]));
-    }, [channelId]);
+    }, [channelId, isOfficial]);
+
+    const insertEmoji = (emoji: string) => {
+        const ta = messageInputRef.current;
+        if (ta) {
+            const start = ta.selectionStart;
+            const end = ta.selectionEnd;
+            const before = message.slice(0, start);
+            const after = message.slice(end);
+            setMessage(before + emoji + after);
+            setTimeout(() => {
+                ta.focus();
+                ta.setSelectionRange(start + emoji.length, start + emoji.length);
+            }, 0);
+        } else {
+            setMessage((prev) => prev + emoji);
+        }
+    };
 
     const handleSend = async () => {
         if (!channelId) {
@@ -55,11 +74,11 @@ export default function BroadcastPage() {
             return;
         }
         if (isOfficial && !templateName) {
-            toast.error('Selecione um template (API Oficial)');
+            toast.error('Selecione um template (canais API Oficial)');
             return;
         }
-        if (!isOfficial && !message.trim()) {
-            toast.error('Digite a mensagem (Uazapi)');
+        if (isUazapi && !message.trim()) {
+            toast.error('Digite a mensagem livre (canal Uazapi)');
             return;
         }
 
@@ -83,7 +102,7 @@ export default function BroadcastPage() {
             const res = await api.sendBroadcast({
                 channelId,
                 templateName: isOfficial ? templateName : undefined,
-                message: !isOfficial ? message : undefined,
+                message: isUazapi ? message : undefined,
                 numbers,
                 leadStatuses: statuses,
             });
@@ -132,6 +151,7 @@ export default function BroadcastPage() {
 
                         {channelId && isOfficial && (
                             <div>
+                                <p className="text-xs text-neutral-500 mb-1">Canal API Oficial: use apenas templates aprovados pelo Meta.</p>
                                 <label className="block text-sm font-medium mb-2">Template aprovado (Meta)</label>
                                 <select
                                     value={templateName}
@@ -146,15 +166,30 @@ export default function BroadcastPage() {
                             </div>
                         )}
 
-                        {channelId && !isOfficial && (
+                        {channelId && isUazapi && (
                             <div>
-                                <label className="block text-sm font-medium mb-2">Mensagem (Uazapi)</label>
+                                <p className="text-xs text-neutral-500 mb-1">Canal Uazapi: mensagem livre. Você pode usar emojis no texto.</p>
+                                <label className="block text-sm font-medium mb-2">Mensagem livre</label>
+                                <div className="flex flex-wrap gap-1 mb-2 p-2 bg-neutral-50 rounded-lg border border-neutral-200">
+                                    {EMOJI_QUICK.map((emoji) => (
+                                        <button
+                                            key={emoji}
+                                            type="button"
+                                            onClick={() => insertEmoji(emoji)}
+                                            className="w-8 h-8 flex items-center justify-center rounded hover:bg-neutral-200 text-lg transition-colors"
+                                            title="Inserir emoji"
+                                        >
+                                            {emoji}
+                                        </button>
+                                    ))}
+                                </div>
                                 <textarea
+                                    ref={messageInputRef}
                                     value={message}
                                     onChange={(e) => setMessage(e.target.value)}
-                                    placeholder="Digite o texto da mensagem..."
-                                    className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 min-h-[100px]"
-                                    rows={4}
+                                    placeholder="Digite o texto da mensagem... Você pode colar emojis ou usar os botões acima."
+                                    className="w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 min-h-[120px] resize-y"
+                                    rows={5}
                                 />
                             </div>
                         )}

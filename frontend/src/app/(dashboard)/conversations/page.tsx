@@ -964,22 +964,13 @@ export default function ConversationsPage() {
                                         )}
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <p className="text-sm text-neutral-500">Tag do contato</p>
-                                    <select
-                                        value={currentConversation.contactTag ?? ''}
-                                        onChange={(e) => {
-                                            const value = e.target.value || null;
-                                            updateConversation.mutate({ id: currentConversation.id, data: { contactTag: value } });
-                                        }}
-                                        className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 focus:border-[#00a884] focus:outline-none focus:ring-1 focus:ring-[#00a884]"
-                                        disabled={updateConversation.isPending}
-                                    >
-                                        <option value="">Nenhuma</option>
-                                        <option value="Oficial">Oficial</option>
-                                        <option value="Não oficial">Não oficial</option>
-                                    </select>
-                                </div>
+                                {currentConversation.contactTag && (
+                                    <div className="space-y-1">
+                                        <p className="text-sm text-neutral-500">Tag do contato</p>
+                                        <p className="text-sm font-medium text-neutral-900">{currentConversation.contactTag}</p>
+                                        <p className="text-xs text-neutral-400">Definida automaticamente pelo canal (API Oficial ou Uazapi).</p>
+                                    </div>
+                                )}
                                 {currentConversation.lead && (
                                     <div className="flex items-center gap-3">
                                         {getTemperatureBadge(currentConversation.lead.temperature)}

@@ -340,6 +340,7 @@ export class WebhooksController {
             organizationId: channel.organization.id,
             leadId: lead.id,
             agentId: defaultAgent?.id,
+            contactTag: 'Oficial',
           } as any,
         });
       } else if (!conversation.leadId) {
@@ -594,6 +595,7 @@ export class WebhooksController {
             organizationId: channel.organization.id,
             leadId: lead.id,
             agentId: defaultAgent?.id,
+            contactTag: 'Uazapi',
           } as any,
         });
       } else if (!conversation.leadId) {

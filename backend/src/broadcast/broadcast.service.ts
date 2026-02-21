@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WhatsAppService } from '../integrations/whatsapp.service';
 import { UazapiService } from '../integrations/uazapi.service';
 import { ConfigService } from '@nestjs/config';
+import { ConversationsService } from '../conversations/conversations.service';
+import { MessagesService } from '../messages/messages.service';
 import { SendBroadcastDto } from './dto/send-broadcast.dto';
 
 /** Delay between sends to avoid Meta rate limits and block risk. No delay before first send. */
@@ -22,6 +24,8 @@ export class BroadcastService {
     private readonly whatsAppService: WhatsAppService,
     private readonly uazapiService: UazapiService,
     private readonly configService: ConfigService,
+    private readonly conversationsService: ConversationsService,
+    private readonly messagesService: MessagesService,
   ) {}
 
   async getChannelsForBroadcast(organizationId: string) {
@@ -84,6 +88,40 @@ export class BroadcastService {
       },
       select: { id: true, name: true, phone: true, status: true },
     });
+  }
+
+  /**
+   * Ensures a lead and conversation exist for the contact and records the outbound broadcast message
+   * so it appears in the omnichannel.
+   */
+  private async ensureConversationAndRecordMessage(
+    organizationId: string,
+    channelId: string,
+    phoneNormalized: string,
+    messageContent: string,
+  ): Promise<void> {
+    try {
+      const conversation = await this.conversationsService.create(
+        {
+          contactName: phoneNormalized,
+          contactIdentifier: phoneNormalized,
+          channelId,
+        },
+        organizationId,
+      );
+      await this.messagesService.create(
+        {
+          conversationId: conversation.id,
+          content: messageContent,
+          senderType: 'user',
+          type: 'text',
+        },
+        organizationId,
+      );
+    } catch (err) {
+      // Log but do not fail the broadcast count; message was already sent via provider
+      console.error(`Broadcast: failed to record conversation/message for ${phoneNormalized}`, err);
+    }
   }
 
   async send(dto: SendBroadcastDto, organizationId: string): Promise<{ sent: number; failed: number; errors: string[] }> {
@@ -174,8 +212,13 @@ export class BroadcastService {
             serverUrl,
             'whatsapp',
           );
-          if (ok) sent++;
-          else { failed++; errors.push(`${to}: falha Uazapi`); }
+          if (ok) {
+            sent++;
+            await this.ensureConversationAndRecordMessage(organizationId, dto.channelId, to, dto.message || '');
+          } else {
+            failed++;
+            errors.push(`${to}: falha Uazapi`);
+          }
         } else {
           if (!phoneNumberId || !accessToken) {
             errors.push(`${to}: canal sem Phone Number ID ou Access Token`);
@@ -197,10 +240,21 @@ export class BroadcastService {
               { headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, timeout: 15000 },
             );
             sent++;
+            await this.ensureConversationAndRecordMessage(
+              organizationId,
+              dto.channelId,
+              to,
+              `[Template: ${dto.templateName}]`,
+            );
           } else {
             const result = await this.whatsAppService.sendMessage(to, dto.message || '', phoneNumberId, accessToken);
-            if (result.success) sent++;
-            else { failed++; errors.push(`${to}: ${result.error}`); }
+            if (result.success) {
+              sent++;
+              await this.ensureConversationAndRecordMessage(organizationId, dto.channelId, to, dto.message || '');
+            } else {
+              failed++;
+              errors.push(`${to}: ${result.error}`);
+            }
           }
         }
       } catch (err: unknown) {

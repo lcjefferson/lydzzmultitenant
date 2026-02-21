@@ -72,6 +72,13 @@ export class ConversationsService {
       orderBy: { updatedAt: 'desc' },
     });
 
+    const contactTag =
+      (channel as { provider?: string }).provider === 'whatsapp-official'
+        ? 'Oficial'
+        : (channel as { provider?: string }).provider === 'uazapi'
+          ? 'Uazapi'
+          : null;
+
     return this.prisma.conversation.create({
       data: {
         ...dto,
@@ -79,6 +86,7 @@ export class ConversationsService {
         organizationId,
         leadId: lead.id,
         agentId: defaultAgent?.id,
+        contactTag,
       },
     });
   }
@@ -100,7 +108,7 @@ export class ConversationsService {
       });
     }
 
-    return this.prisma.conversation.findMany({
+    const list = await this.prisma.conversation.findMany({
       where,
       include: {
         messages: {
@@ -111,10 +119,23 @@ export class ConversationsService {
         channel: {
           select: {
             type: true,
+            provider: true,
           },
         },
       },
       orderBy: { lastMessageAt: 'desc' },
+    });
+
+    return list.map((c) => {
+      const channel = c.channel as { type?: string; provider?: string } | null;
+      const contactTag =
+        c.contactTag ??
+        (channel?.provider === 'whatsapp-official'
+          ? 'Oficial'
+          : channel?.provider === 'uazapi'
+            ? 'Uazapi'
+            : null);
+      return { ...c, contactTag };
     });
   }
 
@@ -135,7 +156,17 @@ export class ConversationsService {
     if (!conversation || conversation.organizationId !== organizationId) {
       return null;
     }
-    return conversation;
+
+    const channel = conversation.channel as { provider?: string } | null;
+    const contactTag =
+      conversation.contactTag ??
+      (channel?.provider === 'whatsapp-official'
+        ? 'Oficial'
+        : channel?.provider === 'uazapi'
+          ? 'Uazapi'
+          : null);
+
+    return { ...conversation, contactTag };
   }
 
   async update(id: string, dto: UpdateConversationDto, organizationId: string) {
@@ -144,9 +175,10 @@ export class ConversationsService {
       throw new NotFoundException('Conversation not found or access denied');
     }
 
+    const { contactTag: _ignored, ...rest } = dto as UpdateConversationDto & { contactTag?: string | null };
     return this.prisma.conversation.update({
       where: { id },
-      data: dto,
+      data: rest,
     });
   }
 
