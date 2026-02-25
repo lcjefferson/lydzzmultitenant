@@ -26,6 +26,7 @@ export function useConversations() {
         queryKey: ['conversations'],
         queryFn: () => api.getConversations(),
         placeholderData: keepPreviousData,
+        staleTime: 20_000,
     });
 }
 

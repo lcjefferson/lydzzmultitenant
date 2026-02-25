@@ -332,7 +332,7 @@ export class MessagesService {
       }
     }
 
-    if (dto.senderType === 'user') {
+    if (dto.senderType === 'user' && !dto.skipSendToChannel) {
       const conversation = await this.prisma.conversation.findUnique({
         where: { id: dto.conversationId },
         include: { channel: true },
@@ -705,10 +705,13 @@ export class MessagesService {
         return [];
       }
     }
-    return this.prisma.message.findMany({
+    const limit = 500;
+    const rows = await this.prisma.message.findMany({
       where: { conversationId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
     });
+    return rows.reverse();
   }
 
   async findOne(id: string, organizationId?: string): Promise<Message | null> {

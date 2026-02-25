@@ -27,6 +27,24 @@ export class BroadcastController {
     return this.broadcastService.getLeadStatuses(organizationId);
   }
 
+  @Get('campaigns')
+  getCampaigns(@GetUser('organizationId') organizationId: string) {
+    return this.broadcastService.getCampaigns(organizationId);
+  }
+
+  @Get('max-daily-recommendation')
+  getMaxDailyRecommendation() {
+    return this.broadcastService.getMaxDailySendsRecommendation();
+  }
+
+  @Get('daily-sent')
+  getDailySent(
+    @Query('channelId') channelId: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.broadcastService.getDailySentCount(channelId, organizationId);
+  }
+
   @Get('leads')
   getLeadsByStatuses(
     @Query('statuses') statuses: string | string[],

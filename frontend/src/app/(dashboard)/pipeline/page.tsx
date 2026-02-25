@@ -34,9 +34,10 @@ export default function PipelinePage() {
   const [overrides, setOverrides] = useState<Record<string, typeof STAGES[number]>>({});
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const isConsultant = user?.role === 'consultant';
+  const isAdmin = user?.role === 'admin';
   const filteredLeads = (leads || []).filter((lead) => {
-    const role = (typeof user?.role === 'string' ? user.role : 'user').toLowerCase();
-    if (role === 'consultant') {
+    if (isConsultant) {
       return String(lead.assignedToId || '') === String(user?.id || '');
     }
     return true;
@@ -271,7 +272,7 @@ export default function PipelinePage() {
                       </p>
                     </div>
                   )}
-                  {lead.source && (
+                  {!isConsultant && lead.source && (
                     <div>
                       <p className="text-sm text-text-tertiary mb-1">Origem</p>
                       <Badge variant="default">{lead.source}</Badge>
@@ -324,7 +325,7 @@ export default function PipelinePage() {
                     Falar via Omnichannel
                   </Button>
                   <OutcomeButton lead={lead} onClose={() => setSelectedLeadId(null)} />
-                  <EditLeadButton lead={lead} />
+                  <EditLeadButton lead={lead} canEditOrigin={isAdmin} />
                   <DelegateLeadButton lead={lead} currentUserRole={String(user?.role || '').toLowerCase()} onDelegated={() => setSelectedLeadId(null)} />
                   <Button
                     variant="danger"
@@ -478,7 +479,7 @@ function Comments({ leadId }: { leadId: string }) {
   );
 }
 
-function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
+function EditLeadButton({ lead, canEditOrigin }: { lead: import('@/types/api').Lead; canEditOrigin?: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(lead.name || '');
   const [email, setEmail] = useState(lead.email || '');
@@ -502,20 +503,18 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
 
   const handleSave = async () => {
     try {
-      await updateLead.mutateAsync({
-        id: lead.id,
-        data: {
-          name,
-          email,
-          phone,
-          company,
-          position,
-          source,
-          interest,
-          temperature,
-          status,
-        },
-      });
+      const data: import('@/types/api').UpdateLeadDto = {
+        name,
+        email: email || undefined,
+        phone: phone || undefined,
+        company: company || undefined,
+        position: position || undefined,
+        interest: interest || undefined,
+        temperature,
+        status,
+      };
+      if (canEditOrigin) data.source = source || undefined;
+      await updateLead.mutateAsync({ id: lead.id, data });
       setOpen(false);
     } catch {}
   };
@@ -556,7 +555,9 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
+        {canEditOrigin && (
         <Input label="Origem" value={source} onChange={(e) => setSource(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
+        )}
         <Input label="Interesse" value={interest} onChange={(e) => setInterest(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
       </div>
               <div className="flex gap-2 pt-2">

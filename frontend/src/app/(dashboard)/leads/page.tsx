@@ -59,6 +59,8 @@ export default function LeadsPage() {
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const { user } = useAuth();
+    const isConsultant = user?.role === 'consultant';
+    const isAdmin = user?.role === 'admin';
     const [searchQuery, setSearchQuery] = useState('');
     const [tempFilter, setTempFilter] = useState<'hot' | 'warm' | 'cold' | undefined>(undefined);
     const [statusFilter, setStatusFilter] = useState<'Lead Novo' | 'Em Qualificação' | 'Qualificado (QUENTE)' | 'Reuniões Agendadas' | 'Proposta enviada (Follow-up)' | 'No Show (Não compareceu) (Follow-up)' | 'Contrato fechado' | undefined>(undefined);
@@ -88,36 +90,60 @@ export default function LeadsPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { mutate: importLeads, isPending: isImporting } = useImportLeads();
 
+    const handleDownloadTemplate = async () => {
+        const XLSX = await import('xlsx');
+        const headers = ['Nome', 'Email', 'Telefone', 'Empresa', 'Cargo'];
+        const exampleRow = ['João Silva', 'joao@email.com', '11999990000', 'Empresa XYZ', 'Gerente'];
+        const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+        XLSX.writeFile(wb, 'modelo_importacao_leads.xlsx');
+        toast.success('Modelo baixado. Preencha e importe na mesma tela.');
+    };
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        const isCsv = file.name.toLowerCase().endsWith('.csv');
         const reader = new FileReader();
         reader.onload = async (evt) => {
-            const XLSX = await import('xlsx');
-            const bstr = evt.target?.result;
-            const wb = XLSX.read(bstr, { type: 'binary' });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws);
-            
-            const mappedData = data.map((row: any) => ({
-                name: row['Nome'] || row['Name'] || row['name'] || row['nome'],
-                email: row['Email'] || row['email'] || row['E-mail'],
-                phone: row['Telefone'] || row['Phone'] || row['phone'] || row['Celular'],
-                company: row['Empresa'] || row['Company'] || row['company'],
-                position: row['Cargo'] || row['Position'] || row['position'],
-            })).filter((item: any) => item.name || item.email || item.phone);
+            try {
+                const XLSX = await import('xlsx');
+                let data: any[];
+                if (isCsv) {
+                    const text = (evt.target?.result as string) || '';
+                    const wb = XLSX.read(text, { type: 'string', raw: true });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    data = XLSX.utils.sheet_to_json(ws);
+                } else {
+                    const bstr = evt.target?.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wsname = wb.SheetNames[0];
+                    const ws = wb.Sheets[wsname];
+                    data = XLSX.utils.sheet_to_json(ws);
+                }
+                const mappedData = data.map((row: any) => ({
+                    name: row['Nome'] || row['Name'] || row['name'] || row['nome'] || '',
+                    email: row['Email'] || row['email'] || row['E-mail'] || '',
+                    phone: row['Telefone'] || row['Phone'] || row['phone'] || row['Celular'] || '',
+                    company: row['Empresa'] || row['Company'] || row['company'] || '',
+                    position: row['Cargo'] || row['Position'] || row['position'] || '',
+                })).filter((item: any) => (item.name || item.email || item.phone) && (String(item.name).trim() || String(item.email).trim() || String(item.phone).trim()));
 
-            if (mappedData.length > 0) {
-                importLeads(mappedData as any);
-            } else {
-                toast.error('Nenhum dado válido encontrado no arquivo.');
+                if (mappedData.length > 0) {
+                    importLeads(mappedData as any);
+                } else {
+                    toast.error('Nenhum dado válido encontrado. Use o modelo (Nome, Email, Telefone, Empresa, Cargo).');
+                }
+            } catch (err) {
+                console.error('Erro ao ler arquivo:', err);
+                toast.error('Erro ao ler o arquivo. Use .xlsx/.xls ou .csv no formato do modelo.');
             }
-            
             if (fileInputRef.current) fileInputRef.current.value = '';
         };
-        reader.readAsBinaryString(file);
+        if (isCsv) reader.readAsText(file, 'UTF-8');
+        else reader.readAsBinaryString(file);
     };
 
 
@@ -178,7 +204,7 @@ export default function LeadsPage() {
         return <Badge variant={variants[temp]} className="w-24 justify-center">{labels[temp]}</Badge>;
     };
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (status: string, className?: string) => {
         const variants: Record<string, 'default' | 'warning' | 'success' | 'error'> = {
             'Lead Novo': 'default',
             'Em Qualificação': 'warning',
@@ -188,7 +214,7 @@ export default function LeadsPage() {
             'No Show (Não compareceu) (Follow-up)': 'error',
             'Contrato fechado': 'success',
         };
-        return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
+        return <Badge variant={variants[status] || 'default'} className={className}>{status}</Badge>;
     };
 
     const handleCreateLead = async (e: React.FormEvent) => {
@@ -241,19 +267,22 @@ export default function LeadsPage() {
         try {
             setIsExporting(true);
             const XLSX = await import('xlsx');
-            const rows = filteredLeads.map((lead) => ({
-                Nome: lead.name,
-                Email: lead.email || '',
-                Telefone: lead.phone || '',
-                Empresa: lead.company || '',
-                Cargo: lead.position || '',
-                Temperatura: lead.temperature || '',
-                Status: lead.status || '',
-                Delegado: getAssignedName(lead) || '',
-                Origem: lead.source || '',
-                Interesse: lead.interest || '',
-                'Data de Criação': new Date(lead.createdAt).toLocaleString('pt-BR'),
-            }));
+            const rows = filteredLeads.map((lead) => {
+                const row: Record<string, string> = {
+                    Nome: lead.name,
+                    Email: lead.email || '',
+                    Telefone: lead.phone || '',
+                    Empresa: lead.company || '',
+                    Cargo: lead.position || '',
+                    Temperatura: lead.temperature || '',
+                    Status: lead.status || '',
+                    Delegado: getAssignedName(lead) || '',
+                    Interesse: lead.interest || '',
+                    'Data de Criação': new Date(lead.createdAt).toLocaleString('pt-BR'),
+                };
+                if (!isConsultant) row.Origem = lead.source || '';
+                return row;
+            });
 
             const worksheet = XLSX.utils.json_to_sheet(rows);
             const workbook = XLSX.utils.book_new();
@@ -348,7 +377,7 @@ export default function LeadsPage() {
                     <div className="flex flex-wrap items-center justify-end gap-4">
                         <input
                             type="file"
-                            accept=".xlsx, .xls"
+                            accept=".xlsx,.xls,.csv"
                             className="hidden"
                             ref={fileInputRef}
                             onChange={handleFileChange}
@@ -357,12 +386,23 @@ export default function LeadsPage() {
                             variant="ghost"
                             size="sm"
                             className="p-1 hover:bg-surface"
-                            title="Importar Excel"
-                            aria-label="Importar Excel"
+                            title="Baixar modelo de planilha"
+                            onClick={handleDownloadTemplate}
+                        >
+                            <FileIconExcel className="h-8 w-8" />
+                            <span className="ml-1 text-sm hidden sm:inline">Modelo</span>
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="p-1 hover:bg-surface"
+                            title="Importar Excel ou CSV"
+                            aria-label="Importar Excel ou CSV"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isImporting}
                         >
                             <Upload className="h-6 w-6 text-neutral-600" />
+                            <span className="ml-1 text-sm hidden sm:inline">{isImporting ? 'Importando...' : 'Importar'}</span>
                         </Button>
                         <Button
                             variant="ghost"
@@ -447,25 +487,27 @@ export default function LeadsPage() {
                             <table className="w-full">
                                 <thead>
                                     <tr className="border-b border-border">
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Lead
                                         </th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Temperatura
                                         </th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Score
                                         </th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Status
                                         </th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Delegado
                                         </th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        {!isConsultant && (
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Origem
                                         </th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-text-secondary">
+                                        )}
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-white">
                                             Ações
                                         </th>
                                     </tr>
@@ -516,7 +558,7 @@ export default function LeadsPage() {
                                                 </div>
                                             </td>
                                             <td className="py-4 px-6">
-                                                {getStatusBadge(lead.status)}
+                                                {getStatusBadge(lead.status, 'text-white')}
                                             </td>
                                             <td className="py-4 px-6">
                                                 {(() => {
@@ -524,9 +566,11 @@ export default function LeadsPage() {
                                                     return name ? <span className="text-sm text-white">{name}</span> : <span className="text-sm text-gray-300">-</span>;
                                                 })()}
                                             </td>
+                                            {!isConsultant && (
                                             <td className="py-4 px-6">
-                                                {lead.source && <Badge variant="default">{lead.source}</Badge>}
+                                                {lead.source && <Badge variant="default" className="text-white">{lead.source}</Badge>}
                                             </td>
+                                            )}
                                             <td className="py-4 px-6">
                                                 <button
                                                     onClick={(e) => {
@@ -614,12 +658,14 @@ export default function LeadsPage() {
                                         />
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
+                                        {isAdmin && (
                                         <Input
                                             label="Origem"
                                             value={formData.source}
                                             onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                                             className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
                                         />
+                                        )}
                                         <Input
                                             label="Interesse"
                                             value={formData.interest}
@@ -718,7 +764,7 @@ export default function LeadsPage() {
                                                 </p>
                                             </div>
                                         )}
-                                        {lead.source && (
+                                        {!isConsultant && lead.source && (
                                             <div>
                                                 <p className="text-sm text-text-tertiary mb-1">Origem</p>
                                                 <Badge variant="default">{lead.source}</Badge>
@@ -805,7 +851,7 @@ export default function LeadsPage() {
                                             Falar via Omnichannel
                                         </Button>
                                         <OutcomeButton lead={lead} onClose={() => setSelectedLead(null)} />
-                                        <EditLeadButton lead={lead} />
+                                        <EditLeadButton lead={lead} canEditOrigin={isAdmin} />
                                         <DelegateLeadButton lead={lead} currentUserRole={String(user?.role || '').toLowerCase()} onDelegated={() => setSelectedLead(null)} />
                                         <Button
                                             variant="danger"
@@ -969,7 +1015,7 @@ function Comments({ leadId }: { leadId: string }) {
     );
 }
 
-function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
+function EditLeadButton({ lead, canEditOrigin }: { lead: import('@/types/api').Lead; canEditOrigin?: boolean }) {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState(lead.name || '');
     const [email, setEmail] = useState(lead.email || '');
@@ -985,20 +1031,18 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
 
     const handleSave = async () => {
         try {
-            await updateLead.mutateAsync({
-                id: lead.id,
-                data: {
-                    name,
-                    email: email || undefined,
-                    phone: phone || undefined,
-                    company: company || undefined,
-                    position: position || undefined,
-                    source: source || undefined,
-                    interest: interest || undefined,
-                    temperature,
-                    status,
-                },
-            });
+            const data: import('@/types/api').UpdateLeadDto = {
+                name,
+                email: email || undefined,
+                phone: phone || undefined,
+                company: company || undefined,
+                position: position || undefined,
+                interest: interest || undefined,
+                temperature,
+                status,
+            };
+            if (canEditOrigin) data.source = source || undefined;
+            await updateLead.mutateAsync({ id: lead.id, data });
             setOpen(false);
         } catch {}
     };
@@ -1021,7 +1065,9 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
                                 <Input label="Cargo" value={position} onChange={(e) => setPosition(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
+                                {canEditOrigin && (
                                 <Input label="Origem" value={source} onChange={(e) => setSource(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
+                                )}
                                 <Input label="Interesse" value={interest} onChange={(e) => setInterest(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">

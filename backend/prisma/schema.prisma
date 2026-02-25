@@ -36,8 +36,35 @@ model Organization {
   leads         Lead[]
   webhooks      Webhook[]
   notifications Notification[]
+  broadcastCampaigns BroadcastCampaign[]
 
   @@map("organizations")
+}
+
+model BroadcastCampaign {
+  id          String   @id @default(uuid())
+  name        String
+  channelId   String
+  sentCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([createdAt])
+  @@map("broadcast_campaigns")
+}
+
+model BroadcastDailySent {
+  id        String   @id @default(uuid())
+  channelId String
+  date      String   // YYYY-MM-DD
+  count     Int      @default(0)
+
+  @@unique([channelId, date])
+  @@index([channelId])
+  @@map("broadcast_daily_sent")
 }
 
 model User {

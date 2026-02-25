@@ -42,4 +42,8 @@ export class CreateMessageDto {
 
   @IsOptional()
   skipAI?: boolean;
+
+  /** When true, message is only stored (e.g. from broadcast); do not send to channel again. */
+  @IsOptional()
+  skipSendToChannel?: boolean;
 }

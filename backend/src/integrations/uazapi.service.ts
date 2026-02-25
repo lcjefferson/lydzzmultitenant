@@ -99,6 +99,63 @@ export class UazapiService {
     }
   }
 
+  /**
+   * Send interactive menu (buttons, list, poll or carousel) via Uazapi.
+   * @see https://docs.uazapi.com/endpoint/post/send~menu
+   */
+  async sendMenu(
+    to: string,
+    payload: {
+      type: 'button' | 'list' | 'poll' | 'carousel';
+      text: string;
+      choices: string[];
+      footerText?: string;
+      listButton?: string;
+      imageButton?: string;
+      selectableCount?: number;
+      delay?: number;
+    },
+    token: string,
+    apiUrl?: string,
+    channelType: string = 'whatsapp',
+  ): Promise<boolean> {
+    try {
+      const baseUrl = (apiUrl || this.apiUrl).replace(/\/$/, '');
+      const url = `${baseUrl}/send/menu`;
+      const cleanNumber = channelType === 'whatsapp' ? to.replace(/\D/g, '') : to;
+
+      const body: Record<string, unknown> = {
+        number: cleanNumber,
+        type: payload.type,
+        text: payload.text,
+        choices: payload.choices,
+      };
+      if (payload.footerText) body.footerText = payload.footerText;
+      if (payload.listButton) body.listButton = payload.listButton;
+      if (payload.imageButton) body.imageButton = payload.imageButton;
+      if (payload.selectableCount != null) body.selectableCount = payload.selectableCount;
+      if (payload.delay != null) body.delay = Math.min(5000, Math.max(0, payload.delay)) as number;
+
+      this.logger.log(`Sending Uazapi menu (${payload.type}) to ${cleanNumber}`);
+      const response = await this.requestWithRetry('post', url, body, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'token': token,
+        },
+      });
+      this.logger.log(`Menu sent to ${to} via Uazapi. Status: ${(response as any)?.status}`);
+      return true;
+    } catch (error) {
+      const err = error as any;
+      this.logger.error(`Failed to send Uazapi menu: ${err.message ?? 'unknown'}`);
+      if (err.response) {
+        this.logger.error(`Uazapi menu error: ${JSON.stringify(err.response.data)}`);
+      }
+      return false;
+    }
+  }
+
   async sendMediaMessage(
     to: string,
     mediaUrl: string,

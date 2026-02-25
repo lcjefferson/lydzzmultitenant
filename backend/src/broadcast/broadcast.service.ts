@@ -90,6 +90,41 @@ export class BroadcastService {
     });
   }
 
+  /** Recommended max daily sends per number to reduce block risk (WhatsApp best practices). */
+  getMaxDailySendsRecommendation(): { uazapi: number; official: number; message: string } {
+    const uazapi = Math.max(50, parseInt(this.configService.get('BROADCAST_MAX_DAILY_UAZAPI') || '250', 10));
+    const official = 1000;
+    return {
+      uazapi,
+      official,
+      message: `Recomendação: até ${uazapi} disparos/dia (Uazapi) e até ${official} (API Oficial). Respeite intervalos entre mensagens para evitar bloqueio.`,
+    };
+  }
+
+  /** Returns how many broadcasts were sent today for a channel (Uazapi). Used to show remaining quota. */
+  async getDailySentCount(channelId: string, organizationId: string): Promise<{ sentToday: number; maxDaily: number }> {
+    const channel = await this.prisma.channel.findFirst({
+      where: { id: channelId, organizationId },
+    });
+    if (!channel || (channel as { provider?: string }).provider !== 'uazapi') {
+      return { sentToday: 0, maxDaily: 250 };
+    }
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const row = await this.prisma.broadcastDailySent.findUnique({
+      where: { channelId_date: { channelId, date: todayStr } },
+    });
+    const maxDaily = Math.max(50, parseInt(this.configService.get('BROADCAST_MAX_DAILY_UAZAPI') || '250', 10));
+    return { sentToday: row?.count ?? 0, maxDaily };
+  }
+
+  async getCampaigns(organizationId: string) {
+    return this.prisma.broadcastCampaign.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+  }
+
   /**
    * Ensures a lead and conversation exist for the contact and records the outbound broadcast message
    * so it appears in the omnichannel.
@@ -115,6 +150,7 @@ export class BroadcastService {
           content: messageContent,
           senderType: 'user',
           type: 'text',
+          skipSendToChannel: true,
         },
         organizationId,
       );
@@ -124,7 +160,7 @@ export class BroadcastService {
     }
   }
 
-  async send(dto: SendBroadcastDto, organizationId: string): Promise<{ sent: number; failed: number; errors: string[] }> {
+  async send(dto: SendBroadcastDto, organizationId: string): Promise<{ sent: number; failed: number; errors: string[]; campaignId?: string }> {
     const channel = await this.prisma.channel.findFirst({
       where: { id: dto.channelId, organizationId },
       include: { organization: true },
@@ -161,15 +197,62 @@ export class BroadcastService {
     const provider = (channel as { provider?: string }).provider ?? (config?.phoneNumberId ? 'whatsapp-official' : 'uazapi');
 
     const useTemplate = !!dto.templateName && provider === 'whatsapp-official';
-    const useText = !!dto.message?.trim() || provider !== 'whatsapp-official';
+    const useText = !!dto.message?.trim() || provider !== 'whatsapp-official' || dto.mediaUrl?.trim();
     if (!useTemplate && !useText) {
-      throw new BadRequestException('Para API Oficial use um template aprovado (templateName). Para Uazapi informe a mensagem (message).');
+      throw new BadRequestException('Para API Oficial use um template aprovado (templateName). Para Uazapi informe a mensagem (message) ou mídia (mediaUrl).');
+    }
+    if (provider === 'uazapi' && dto.messageType === 'button' && (!dto.buttonChoices?.length || dto.buttonChoices.every((c) => !c?.trim()))) {
+      throw new BadRequestException('Para mensagem com botões informe ao menos uma opção em buttonChoices.');
+    }
+    if (provider === 'uazapi' && dto.messageType === 'list') {
+      if (!dto.listButton?.trim()) throw new BadRequestException('Para mensagem tipo lista informe listButton.');
+      if (!dto.buttonChoices?.length || dto.buttonChoices.every((c) => !c?.trim())) {
+        throw new BadRequestException('Para lista informe as opções em buttonChoices (use [Seção] para títulos).');
+      }
+    }
+    if (provider === 'uazapi' && dto.mediaUrl?.trim() && !dto.mediaType) {
+      throw new BadRequestException('Ao informar mediaUrl defina mediaType (image, video, audio ou document).');
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const maxDailyUazapi = Math.max(50, parseInt(this.configService.get('BROADCAST_MAX_DAILY_UAZAPI') || '250', 10));
+    if (provider === 'uazapi') {
+      const daily = await this.prisma.broadcastDailySent.findUnique({
+        where: { channelId_date: { channelId: dto.channelId, date: todayStr } },
+      });
+      const alreadySent = daily?.count ?? 0;
+      if (phones.length > 0 && alreadySent >= maxDailyUazapi) {
+        throw new BadRequestException(
+          `Limite diário de disparos (${maxDailyUazapi}) já atingido para este canal hoje. Amanhã o contador é zerado. Evite banimento.`,
+        );
+      }
+      const wouldExceed = alreadySent + phones.length;
+      if (wouldExceed > maxDailyUazapi) {
+        throw new BadRequestException(
+          `Este envio (${phones.length} números) excederia o limite diário. Já enviados hoje: ${alreadySent}. Máximo: ${maxDailyUazapi}. Reduza a lista ou aguarde até amanhã.`,
+        );
+      }
     }
 
     const accessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
     const phoneNumberId = config?.phoneNumberId || this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
     const token = config?.token || this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
     const serverUrl = config?.serverUrl;
+
+    const uazapiVariations = [dto.message, ...(dto.messageVariations || [])].filter((m): m is string => !!m?.trim());
+
+    let campaignId: string | null = null;
+    if (dto.campaignName?.trim()) {
+      const campaign = await this.prisma.broadcastCampaign.create({
+        data: {
+          name: dto.campaignName.trim(),
+          channelId: dto.channelId,
+          organizationId,
+          sentCount: 0,
+        },
+      });
+      campaignId = campaign.id;
+    }
 
     let sent = 0;
     let failed = 0;
@@ -181,20 +264,27 @@ export class BroadcastService {
       return n;
     };
 
-    // Delays to avoid Meta block: configurable via env, conservative defaults
-    const delayMetaMs = Math.max(1000, parseInt(this.configService.get('BROADCAST_DELAY_META_MS') || '2000', 10));
-    const delayUazapiMs = Math.max(200, parseInt(this.configService.get('BROADCAST_DELAY_UAZAPI_MS') || '500', 10));
-    const jitterMs = 500; // 0..500ms random extra
+    const pickRandomMessage = (): string => {
+      if (provider !== 'uazapi' || uazapiVariations.length === 0) return dto.message || '';
+      return uazapiVariations[Math.floor(Math.random() * uazapiVariations.length)]!;
+    };
+
+    // Delays following WhatsApp best practices: 30–60s (Meta), 15–45s (Uazapi) with jitter to avoid pattern detection
+    const delayMetaMinMs = Math.max(25000, parseInt(this.configService.get('BROADCAST_DELAY_META_MIN_MS') || '30000', 10));
+    const delayMetaMaxMs = Math.max(delayMetaMinMs, parseInt(this.configService.get('BROADCAST_DELAY_META_MAX_MS') || '60000', 10));
+    const delayUazapiMinMs = Math.max(15000, parseInt(this.configService.get('BROADCAST_DELAY_UAZAPI_MIN_MS') || '15000', 10));
+    const delayUazapiMaxMs = Math.max(delayUazapiMinMs, parseInt(this.configService.get('BROADCAST_DELAY_UAZAPI_MAX_MS') || '45000', 10));
+    const jitterMs = 5000;
 
     for (let i = 0; i < phones.length; i++) {
       const raw = phones[i];
       const to = normalizePhone(raw);
 
-      // Wait before each send (except the first) to stay under Meta limits and avoid block
+      // Wait before each send (except the first) – WhatsApp best practices: random 15–45s (Uazapi) or 30–60s (Meta)
       if (i > 0) {
-        const delay = provider === 'uazapi'
-          ? jitter(delayUazapiMs, jitterMs)
-          : jitter(delayMetaMs, jitterMs);
+        const minMs = provider === 'uazapi' ? delayUazapiMinMs : delayMetaMinMs;
+        const maxMs = provider === 'uazapi' ? delayUazapiMaxMs : delayMetaMaxMs;
+        const delay = minMs + Math.floor(Math.random() * (maxMs - minMs + 1)) + Math.floor(Math.random() * (jitterMs + 1));
         await sleep(delay);
       }
 
@@ -205,16 +295,71 @@ export class BroadcastService {
             failed++;
             continue;
           }
-          const ok = await this.uazapiService.sendMessage(
-            to,
-            dto.message || '',
-            token,
-            serverUrl,
-            'whatsapp',
-          );
+          const textToSend = pickRandomMessage();
+          let ok = false;
+
+          if (dto.mediaUrl?.trim() && dto.mediaType) {
+            ok = await this.uazapiService.sendMediaMessage(
+              to,
+              dto.mediaUrl.trim(),
+              dto.mediaType,
+              textToSend || '',
+              token,
+              serverUrl,
+              'whatsapp',
+              undefined,
+            );
+          } else if (dto.messageType === 'button' && dto.buttonChoices?.length) {
+            ok = await this.uazapiService.sendMenu(
+              to,
+              {
+                type: 'button',
+                text: dto.message?.trim() || 'Escolha uma opção:',
+                choices: dto.buttonChoices.filter(Boolean).slice(0, 5),
+                footerText: dto.footerText?.trim(),
+                imageButton: dto.imageButtonUrl?.trim(),
+                delay: 1000 + Math.floor(Math.random() * 1000),
+              },
+              token,
+              serverUrl,
+              'whatsapp',
+            );
+          } else if (dto.messageType === 'list' && dto.buttonChoices?.length && dto.listButton?.trim()) {
+            ok = await this.uazapiService.sendMenu(
+              to,
+              {
+                type: 'list',
+                text: dto.message?.trim() || 'Selecione uma opção:',
+                choices: dto.buttonChoices.filter(Boolean),
+                listButton: dto.listButton.trim(),
+                footerText: dto.footerText?.trim(),
+                delay: 1000 + Math.floor(Math.random() * 1000),
+              },
+              token,
+              serverUrl,
+              'whatsapp',
+            );
+          } else {
+            ok = await this.uazapiService.sendMessage(
+              to,
+              textToSend,
+              token,
+              serverUrl,
+              'whatsapp',
+            );
+          }
+
           if (ok) {
             sent++;
-            await this.ensureConversationAndRecordMessage(organizationId, dto.channelId, to, dto.message || '');
+            const contentToRecord =
+              dto.mediaUrl && dto.mediaType
+                ? `[Mídia: ${dto.mediaType}] ${textToSend || '(sem legenda)'}`
+                : dto.messageType === 'button'
+                  ? `${dto.message?.trim() || ''} [Botões]`
+                  : dto.messageType === 'list'
+                    ? `${dto.message?.trim() || ''} [Lista]`
+                    : textToSend;
+            await this.ensureConversationAndRecordMessage(organizationId, dto.channelId, to, contentToRecord);
           } else {
             failed++;
             errors.push(`${to}: falha Uazapi`);
@@ -264,6 +409,21 @@ export class BroadcastService {
       }
     }
 
-    return { sent, failed, errors };
+    if (campaignId && sent > 0) {
+      await this.prisma.broadcastCampaign.update({
+        where: { id: campaignId },
+        data: { sentCount: { increment: sent } },
+      });
+    }
+
+    if (provider === 'uazapi' && sent > 0) {
+      await this.prisma.broadcastDailySent.upsert({
+        where: { channelId_date: { channelId: dto.channelId, date: todayStr } },
+        create: { channelId: dto.channelId, date: todayStr, count: sent },
+        update: { count: { increment: sent } },
+      });
+    }
+
+    return { sent, failed, errors, campaignId: campaignId ?? undefined };
   }
 }

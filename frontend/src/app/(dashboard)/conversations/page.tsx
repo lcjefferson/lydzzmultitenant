@@ -146,6 +146,7 @@ export default function ConversationsPage() {
     const [showRightPanel, setShowRightPanel] = useState(true);
     const [showConversationMenu, setShowConversationMenu] = useState(false);
     const { user } = useAuth();
+    const isConsultant = user?.role === 'consultant';
     const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     
@@ -800,7 +801,7 @@ export default function ConversationsPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                                {currentConversation.lead?.source && (
+                                {!isConsultant && currentConversation.lead?.source && (
                                     <Badge variant="default" className="capitalize bg-blue-100 text-blue-800 hover:bg-blue-200 border-0 text-xs hidden sm:inline-flex">
                                         {currentConversation.lead.source.replace(/_/g, ' ')}
                                     </Badge>
@@ -1011,7 +1012,7 @@ export default function ConversationsPage() {
                                             </p>
                                         </div>
                                     )}
-                                    {currentConversation.lead?.source && (
+                                    {!isConsultant && currentConversation.lead?.source && (
                                         <div>
                                             <p className="text-sm text-neutral-500 mb-1">Origem</p>
                                             <Badge variant="default">{currentConversation.lead.source}</Badge>
@@ -1101,6 +1102,8 @@ export default function ConversationsPage() {
 function LeadDetailsModalContent({ leadId, onClose }: { leadId: string; onClose: () => void }) {
     const { data: lead } = useLead(leadId);
     const { user } = useAuth();
+    const isConsultant = user?.role === 'consultant';
+    const isAdmin = user?.role === 'admin';
     if (!lead) return null;
     const getTemperatureBadge = (temp: 'hot' | 'warm' | 'cold') => {
         const variants = { hot: 'hot' as const, warm: 'warm' as const, cold: 'cold' as const };
@@ -1173,7 +1176,7 @@ function LeadDetailsModalContent({ leadId, onClose }: { leadId: string; onClose:
                         </p>
                     </div>
                 )}
-                {lead.source && (
+                {!isConsultant && lead.source && (
                     <div>
                         <p className="text-sm text-text-tertiary mb-1">Origem</p>
                         <Badge variant="default">{lead.source}</Badge>
@@ -1210,7 +1213,7 @@ function LeadDetailsModalContent({ leadId, onClose }: { leadId: string; onClose:
             })()}
             <div className="flex flex-wrap gap-2 justify-end">
                 <OutcomeButton lead={lead} onClose={onClose} />
-                <EditLeadButton lead={lead} />
+                <EditLeadButton lead={lead} canEditOrigin={isAdmin} />
                 <DelegateLeadButton lead={lead} currentUserRole={String(user?.role || '').toLowerCase()} onDelegated={onClose} />
                 <Button variant="secondary" size="sm" onClick={onClose}>
                     Fechar
@@ -1346,7 +1349,7 @@ function OutcomeButton({ lead, onClose }: { lead: import('@/types/api').Lead; on
     );
 }
 
-function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
+function EditLeadButton({ lead, canEditOrigin }: { lead: import('@/types/api').Lead; canEditOrigin?: boolean }) {
     const [open, setOpen] = useState(false);
     const [name, setName] = useState(lead.name || '');
     const [email, setEmail] = useState(lead.email || '');
@@ -1360,20 +1363,18 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
     const updateLead = useUpdateLead();
     const handleSave = async () => {
         try {
-            await updateLead.mutateAsync({
-                id: lead.id,
-                data: {
-                    name,
-                    email: email || undefined,
-                    phone: phone || undefined,
-                    company: company || undefined,
-                    position: position || undefined,
-                    source: source || undefined,
-                    interest: interest || undefined,
-                    temperature,
-                    status,
-                },
-            });
+            const data: import('@/types/api').UpdateLeadDto = {
+                name,
+                email: email || undefined,
+                phone: phone || undefined,
+                company: company || undefined,
+                position: position || undefined,
+                interest: interest || undefined,
+                temperature,
+                status,
+            };
+            if (canEditOrigin) data.source = source || undefined;
+            await updateLead.mutateAsync({ id: lead.id, data });
             setOpen(false);
         } catch {}
     };
@@ -1395,7 +1396,9 @@ function EditLeadButton({ lead }: { lead: import('@/types/api').Lead }) {
                                 <Input label="Cargo" value={position} onChange={(e) => setPosition(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
+                                {canEditOrigin && (
                                 <Input label="Origem" value={source} onChange={(e) => setSource(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
+                                )}
                                 <Input label="Interesse" value={interest} onChange={(e) => setInterest(e.target.value)} className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20" />
                             </div>
                             <div className="grid grid-cols-2 gap-4">

@@ -356,6 +356,21 @@ class ApiService {
         return response.data;
     }
 
+    async getBroadcastCampaigns(): Promise<Array<{ id: string; name: string; channelId: string; sentCount: number; createdAt: string }>> {
+        const response = await this.api.get('/broadcast/campaigns');
+        return response.data;
+    }
+
+    async getBroadcastMaxDailyRecommendation(): Promise<{ uazapi: number; official: number; message: string }> {
+        const response = await this.api.get('/broadcast/max-daily-recommendation');
+        return response.data;
+    }
+
+    async getBroadcastDailySent(channelId: string): Promise<{ sentToday: number; maxDaily: number }> {
+        const response = await this.api.get(`/broadcast/daily-sent?channelId=${encodeURIComponent(channelId)}`);
+        return response.data;
+    }
+
     async getBroadcastLeadsByStatuses(statuses: string[]): Promise<Array<{ id: string; name: string; phone: string | null; status: string }>> {
         const params = new URLSearchParams();
         statuses.forEach((s) => params.append('statuses', s));
@@ -363,8 +378,23 @@ class ApiService {
         return response.data;
     }
 
-    async sendBroadcast(data: { channelId: string; templateName?: string; message?: string; numbers?: string[]; leadStatuses?: string[] }): Promise<{ sent: number; failed: number; errors: string[] }> {
-        const response = await this.api.post<{ sent: number; failed: number; errors: string[] }>('/broadcast/send', data);
+    async sendBroadcast(data: {
+        channelId: string;
+        campaignName?: string;
+        templateName?: string;
+        message?: string;
+        messageVariations?: string[];
+        messageType?: 'text' | 'button' | 'list';
+        buttonChoices?: string[];
+        listButton?: string;
+        footerText?: string;
+        imageButtonUrl?: string;
+        mediaUrl?: string;
+        mediaType?: 'image' | 'video' | 'audio' | 'document';
+        numbers?: string[];
+        leadStatuses?: string[];
+    }): Promise<{ sent: number; failed: number; errors: string[]; campaignId?: string }> {
+        const response = await this.api.post<{ sent: number; failed: number; errors: string[]; campaignId?: string }>('/broadcast/send', data);
         return response.data;
     }
 

@@ -23,6 +23,36 @@ export class WhatsAppService {
     this.logger.log(`WhatsApp API base URL: ${this.apiUrl}`);
   }
 
+  /** Retry on 5xx or network/timeout to improve delivery (Meta API can be flaky). */
+  private async postWithRetry(
+    url: string,
+    payload: unknown,
+    config: { headers: Record<string, string>; timeout: number },
+    maxRetries = 3,
+  ): Promise<{ data: unknown }> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await axios.post<unknown>(url, payload, config);
+        return response;
+      } catch (err) {
+        lastError = err;
+        if (!axios.isAxiosError(err)) throw err;
+        const status = err.response?.status;
+        const isRetryable =
+          (status != null && status >= 500 && status < 600) ||
+          err.code === 'ECONNABORTED' ||
+          err.code === 'ETIMEDOUT' ||
+          err.code === 'ECONNRESET';
+        if (!isRetryable || attempt === maxRetries) throw err;
+        const delayMs = 1000 * Math.pow(2, attempt - 1);
+        this.logger.warn(`WhatsApp API attempt ${attempt}/${maxRetries} failed (${status ?? err.code}). Retrying in ${delayMs}ms...`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+    throw lastError;
+  }
+
   /**
    * Send a text message via WhatsApp Business API
    */
@@ -56,7 +86,7 @@ export class WhatsAppService {
 
       this.logger.log(`Sending WhatsApp message to ${cleanTo} using PhoneID ${cleanPhoneId}`);
 
-      const response = await axios.post<unknown>(
+      const response = await this.postWithRetry(
         `${this.apiUrl}/${cleanPhoneId}/messages`,
         payload,
         {
@@ -64,7 +94,7 @@ export class WhatsAppService {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-          timeout: 15000, // 15s - avoid hanging if Meta API is slow
+          timeout: 20000, // 20s; retries handle transient failures
         },
       );
 
@@ -176,7 +206,7 @@ export class WhatsAppService {
           this.logger.warn(`WhatsApp does not support WebM. Audio should be converted to OGG on upload.`);
       }
 
-      const response = await axios.post<unknown>(
+      const response = await this.postWithRetry(
         `${this.apiUrl}/${cleanPhoneId}/messages`,
         payload,
         {
@@ -184,7 +214,7 @@ export class WhatsAppService {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
           },
-          timeout: 20000, // 20s for media uploads
+          timeout: 25000, // 25s for media; retries on 5xx/timeout
         },
       );
 
