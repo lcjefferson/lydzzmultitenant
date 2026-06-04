@@ -1,0 +1,116 @@
+/**
+ * Cria administrador via CLI — funciona no container de produção (sem ts-node).
+ * Uso: node prisma/create-admin.js
+ */
+const { PrismaClient } = require('@prisma/client');
+const readline = require('readline');
+const bcrypt = require('bcrypt');
+
+const prisma = new PrismaClient();
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+const question = (query) =>
+  new Promise((resolve) => {
+    rl.question(query, resolve);
+  });
+
+async function main() {
+  console.log('=== CRIAR NOVO ADMINISTRADOR ===');
+
+  try {
+    let orgId;
+
+    console.log('\n--- Configuração da Organização ---');
+    const orgAction = await question(
+      'Deseja usar uma organização existente (E) ou criar uma nova (N)? [E/N]: ',
+    );
+
+    if (orgAction.toLowerCase() === 'n') {
+      const orgName = await question('Nome da nova organização: ');
+      const plan =
+        (await question('Plano (starter/professional/enterprise) [starter]: ')) ||
+        'starter';
+      const slug = orgName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const newOrg = await prisma.organization.create({
+        data: { name: orgName, slug, plan },
+      });
+      orgId = newOrg.id;
+      console.log(`Organização criada: ${newOrg.name} (${newOrg.id})`);
+    } else {
+      const orgs = await prisma.organization.findMany({ take: 5 });
+      if (orgs.length === 0) {
+        console.log('Nenhuma organização encontrada. Você deve criar uma nova.');
+        const orgName = await question('Nome da nova organização: ');
+        const slug = orgName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        const newOrg = await prisma.organization.create({
+          data: { name: orgName, slug },
+        });
+        orgId = newOrg.id;
+      } else {
+        console.log('Organizações recentes:');
+        orgs.forEach((o, i) => console.log(`${i + 1}. ${o.name} (${o.slug})`));
+
+        const orgIdentifier = await question(
+          'Digite o Slug ou ID da organização: ',
+        );
+        const org = await prisma.organization.findFirst({
+          where: {
+            OR: [{ id: orgIdentifier }, { slug: orgIdentifier }],
+          },
+        });
+
+        if (!org) {
+          throw new Error('Organização não encontrada.');
+        }
+        orgId = org.id;
+        console.log(`Organização selecionada: ${org.name}`);
+      }
+    }
+
+    console.log('\n--- Dados do Administrador ---');
+    const name = await question('Nome do usuário: ');
+    const email = await question('Email: ');
+    const password = await question('Senha: ');
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      throw new Error(`Usuário com email ${email} já existe.`);
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: passwordHash,
+        role: 'admin',
+        organizationId: orgId,
+      },
+    });
+
+    console.log('\n=== SUCESSO ===');
+    console.log('Usuário Admin criado com sucesso!');
+    console.log(`Email: ${user.email}`);
+    console.log(`Organização ID: ${user.organizationId}`);
+  } catch (error) {
+    console.error('\nErro ao criar administrador:', error);
+    process.exitCode = 1;
+  } finally {
+    rl.close();
+    await prisma.$disconnect();
+  }
+}
+
+main();

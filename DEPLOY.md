@@ -95,7 +95,7 @@ docker build \
 ## 5. Após o deploy
 
 - [ ] Rodar migrations: `npx prisma migrate deploy` (no backend)
-- [ ] Criar primeiro admin: `npx ts-node prisma/create-admin.ts` (se ainda não tiver)
+- [ ] Criar primeiro admin: `node prisma/create-admin.js` (no container: `docker compose -f docker-compose.prod.yml exec -it backend node prisma/create-admin.js`)
 - [ ] Testar login, conversas, webhook WhatsApp e envio de mensagens
 - [ ] Verificar logs do backend (erros 5xx, falhas de envio WhatsApp)
 

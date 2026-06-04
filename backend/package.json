@@ -24,8 +24,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:seed": "ts-node prisma/seed.ts",
-    "create-admin": "ts-node prisma/create-admin.ts"
+    "prisma:seed": "ts-node --transpile-only prisma/seed.ts",
+    "create-admin": "node prisma/create-admin.js",
+    "create-admin:dev": "ts-node prisma/create-admin.ts"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
