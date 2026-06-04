@@ -199,8 +199,8 @@ ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "
     fi
 "
 
-scp $SCP_OPTS nginx_vps.conf $SERVER_USER@$SERVER_HOST:/etc/nginx/sites-available/default
-ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "nginx -t && systemctl reload nginx"
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "chmod +x $DEST_DIR/scripts/setup-nginx-vps.sh 2>/dev/null || true"
+ssh $SSH_OPTS $SERVER_USER@$SERVER_HOST "cd $DEST_DIR && ./scripts/setup-nginx-vps.sh"
 
 # 4. Build and Start Containers
 echo -e "${YELLOW}Building and starting containers...${NC}"
