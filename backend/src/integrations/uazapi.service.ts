@@ -9,6 +9,51 @@ interface UazapiTextMessage {
   text: string;
 }
 
+function pickField(
+  obj: unknown,
+  ...keys: string[]
+): unknown {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+    return undefined;
+  }
+  const record = obj as Record<string, unknown>;
+  for (const key of keys) {
+    const val = record[key];
+    if (val !== undefined && val !== null && val !== '') {
+      return val;
+    }
+  }
+  const byLower = new Map(
+    Object.keys(record).map((k) => [k.toLowerCase(), k]),
+  );
+  for (const key of keys) {
+    const actual = byLower.get(key.toLowerCase());
+    if (!actual) continue;
+    const val = record[actual];
+    if (val !== undefined && val !== null && val !== '') {
+      return val;
+    }
+  }
+  return undefined;
+}
+
+function jidToPhone(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return '';
+  }
+  return value.trim().replace(/@.+$/, '');
+}
+
+function firstString(value: unknown): string {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  if (Array.isArray(value) && value.length > 0) {
+    return firstString(value[0]);
+  }
+  return '';
+}
+
 @Injectable()
 export class UazapiService {
   private readonly logger = new Logger(UazapiService.name);
@@ -467,8 +512,14 @@ export class UazapiService {
       
       // Determine the root message object
       let messageData = payload;
-      const eventType = payload.event || payload.EventType;
-      
+      const rawEvent = payload.event ?? payload.EventType;
+      const eventType =
+        typeof rawEvent === 'string'
+          ? rawEvent
+          : (pickField(rawEvent, 'type', 'Type', 'event', 'Event') as
+              | string
+              | undefined);
+
       // Handle "messages.upsert" event structure (Baileys/Uazapi common)
       if ((eventType === 'messages.upsert' || eventType === 'messages_upsert') && payload.data) {
         messageData = typeof payload.data === 'string' ? JSON.parse(payload.data) : payload.data;
@@ -479,6 +530,13 @@ export class UazapiService {
          if (payload.owner && !payload.instanceId) {
              (payload as any).instanceId = payload.owner;
          }
+      } else if (
+        (eventType === 'messages' || eventType === 'MESSAGE') &&
+        rawEvent &&
+        typeof rawEvent === 'object' &&
+        !Array.isArray(rawEvent)
+      ) {
+        messageData = rawEvent;
       } else if (payload.messages?.[0]) {
         messageData = payload.messages[0];
       } else if (eventType === 'messages.update' && payload.data) {
@@ -489,10 +547,23 @@ export class UazapiService {
         // Fallback: if data exists but event is missing, assume data is the message object
         // This handles cases where event name might be missing or different
         messageData = typeof payload.data === 'string' ? JSON.parse(payload.data) : payload.data;
+      } else if (
+        rawEvent &&
+        typeof rawEvent === 'object' &&
+        !Array.isArray(rawEvent) &&
+        messageData === payload &&
+        pickField(rawEvent, 'Chat', 'Sender', 'sender_pn', 'Text', 'Message', 'Body', 'chatid')
+      ) {
+        // Fortalabs/Uazapi: message fields live under payload.event as an object
+        messageData = rawEvent;
       }
 
       // Check if it's just a status update (has status but no content usually)
-      if (messageData.status && !messageData.message && !messageData.content && !messageData.text) {
+      if (
+        messageData.status &&
+        !messageData.message &&
+        !pickField(messageData, 'content', 'text', 'Text', 'Message', 'Body')
+      ) {
           this.logger.log('Ignoring status update event');
           return null;
       }
@@ -530,44 +601,83 @@ export class UazapiService {
 
       // Detect if it is a group message
       let isGroup = false;
-      const remoteJid = messageData.key?.remoteJid || messageData.from || messageData.chat || '';
+      const remoteJid =
+        messageData.key?.remoteJid ||
+        pickField(messageData, 'from', 'chat', 'Chat', 'chatid', 'Sender', 'sender') ||
+        '';
       if (typeof remoteJid === 'string' && remoteJid.endsWith('@g.us')) {
           isGroup = true;
       }
 
       // Detect if it is from me
-      const fromMe = messageData.key?.fromMe || messageData.fromMe || false;
+      const fromMe = Boolean(
+        messageData.key?.fromMe ||
+          pickField(messageData, 'fromMe', 'FromMe', 'from_me'),
+      );
 
-      // Extract 'from'
-      let from = '';
-      if (messageData.sender_pn) {
-         // Preferred for Uazapi/Baileys as it contains the raw phone number
-         from = messageData.sender_pn.replace(/@.+/, '');
-      } else if (messageData.key?.remoteJid) {
-        from = messageData.key.remoteJid.replace(/@.+/, '');
-      } else if (messageData.sender) {
-        from = messageData.sender.replace(/@.+/, '');
-      } else if (messageData.from) {
-        from = messageData.from;
-      } else if (messageData.phone) {
-        from = messageData.phone;
-      }
+      // Extract 'from' (Baileys + Fortalabs/Uazapi flat payloads)
+      const fromRaw =
+        pickField(
+          messageData,
+          'sender_pn',
+          'Sender_pn',
+          'Sender',
+          'sender',
+          'Chat',
+          'chat',
+          'chatid',
+          'chatId',
+          'phone',
+          'from',
+        ) || messageData.key?.remoteJid;
+      let from = jidToPhone(fromRaw);
 
       // Extract text content
       let textBody = '';
-      if (messageData.message?.conversation) {
+      const fortalabsText = pickField(
+        messageData,
+        'Text',
+        'Message',
+        'Body',
+        'messageText',
+        'msg',
+        'content',
+        'text',
+        'body',
+      );
+      if (typeof fortalabsText === 'string') {
+        textBody = fortalabsText;
+      } else if (
+        fortalabsText &&
+        typeof fortalabsText === 'object' &&
+        !Array.isArray(fortalabsText)
+      ) {
+        const nested = fortalabsText as Record<string, unknown>;
+        textBody =
+          firstString(nested.conversation) ||
+          firstString(nested.text) ||
+          firstString(nested.body) ||
+          '';
+        if (!textBody && nested.extendedTextMessage && typeof nested.extendedTextMessage === 'object') {
+          textBody = firstString(
+            (nested.extendedTextMessage as Record<string, unknown>).text,
+          );
+        }
+      }
+
+      if (!textBody && messageData.message?.conversation) {
         textBody = messageData.message.conversation;
-      } else if (messageData.message?.extendedTextMessage?.text) {
+      } else if (!textBody && messageData.message?.extendedTextMessage?.text) {
         textBody = messageData.message.extendedTextMessage.text;
-      } else if (messageData.content?.text) {
+      } else if (!textBody && messageData.content?.text) {
          textBody = messageData.content.text;
-      } else if (messageData.text?.body) {
+      } else if (!textBody && messageData.text?.body) {
         textBody = messageData.text.body;
-      } else if (typeof messageData.text === 'string') {
+      } else if (!textBody && typeof messageData.text === 'string') {
         textBody = messageData.text;
-      } else if (messageData.content) {
+      } else if (!textBody && messageData.content) {
         textBody = typeof messageData.content === 'string' ? messageData.content : JSON.stringify(messageData.content);
-      } else if (messageData.body) {
+      } else if (!textBody && messageData.body) {
         textBody = messageData.body;
       }
 
@@ -587,10 +697,32 @@ export class UazapiService {
       }
 
       // Extract other fields
-      const messageId = messageData.key?.id || messageData.messageid || messageData.id || '';
-      const timestamp = messageData.messageTimestamp ? new Date(Number(messageData.messageTimestamp)).toISOString() : (messageData.timestamp || new Date().toISOString());
+      const messageId =
+        firstString(messageData.key?.id) ||
+        firstString(
+          pickField(
+            messageData,
+            'messageid',
+            'messageId',
+            'MessageID',
+            'MessageIDs',
+            'id',
+          ),
+        ) ||
+        '';
+      const timestampRaw = pickField(
+        messageData,
+        'messageTimestamp',
+        'timestamp',
+        'Timestamp',
+      );
+      const timestamp = timestampRaw
+        ? new Date(Number(timestampRaw)).toISOString()
+        : new Date().toISOString();
       
-      let type = messageData.type || messageData.messageType || 'text';
+      let type =
+        firstString(pickField(messageData, 'type', 'messageType', 'MessageType')) ||
+        'text';
       
       // Fix: specific handling for generic 'media' type when specific messageType is available
       if (type === 'media' && messageData.messageType) {
@@ -605,8 +737,25 @@ export class UazapiService {
       if (type === 'StickerMessage') type = 'sticker';
       if (type === 'conversation') type = 'text';
 
-      const instanceId = payload.instanceId || payload.instance_id || payload.owner;
-      const contactName = messageData.pushName || messageData.senderName || messageData.contact?.name || messageData.notifyName || payload.chat?.contactName;
+      const instanceId =
+        payload.instanceId ||
+        payload.instance_id ||
+        payload.owner ||
+        pickField(payload, 'instanceName', 'InstanceName');
+      const contactName =
+        firstString(
+          pickField(
+            messageData,
+            'pushName',
+            'senderName',
+            'notifyName',
+            'contactName',
+            'ContactName',
+            'SenderName',
+          ),
+        ) ||
+        messageData.contact?.name ||
+        payload.chat?.contactName;
 
       // Extract media details
       let media: any = undefined;
@@ -801,6 +950,15 @@ export class UazapiService {
       this.logger.log(`Extracted data - From: ${from}, Msg: ${textBody}, Type: ${type}, Inst: ${instanceId}`);
 
       if (!from || !textBody) {
+        const hasFortalabsMeta = Boolean(
+          pickField(messageData, 'Chat', 'Sender', 'chatid', 'BaseUrl', 'sender_pn'),
+        );
+        if (hasFortalabsMeta && !textBody) {
+          this.logger.log(
+            'Ignoring Uazapi/Fortalabs event without message content',
+          );
+          return null;
+        }
         this.logger.warn(`Missing required fields (from or message). From: '${from}', TextBody: '${textBody}'`);
         this.logger.warn(`Dump messageData: ${JSON.stringify(messageData, null, 2)}`);
         return null;
