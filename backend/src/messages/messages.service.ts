@@ -12,6 +12,10 @@ import { OpenAIService } from '../common/openai.service';
 import { WhatsAppService } from '../integrations/whatsapp.service';
 import { UazapiService } from '../integrations/uazapi.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  getOfficialWhatsAppCredentials,
+  getUazapiCredentials,
+} from '../common/channel-credentials.util';
 
 @Injectable()
 export class MessagesService {
@@ -43,8 +47,7 @@ export class MessagesService {
         }
 
         const channelConfig = conversation.channel.config as any;
-        const token = channelConfig?.token || this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
-        const serverUrl = channelConfig?.serverUrl; // Extract serverUrl
+        const { token, serverUrl } = getUazapiCredentials(conversation.channel);
 
         if (!token) {
             this.logger.error('No Uazapi token found for sync');
@@ -260,7 +263,17 @@ export class MessagesService {
       data: updateData,
     });
 
-    this.gateway.emitNewMessage(dto.conversationId, message);
+    const convMeta = await this.prisma.conversation.findUnique({
+      where: { id: dto.conversationId },
+      select: { organizationId: true },
+    });
+    if (convMeta) {
+      this.gateway.emitNewMessage(
+        dto.conversationId,
+        convMeta.organizationId,
+        message,
+      );
+    }
 
     if (dto.senderType === 'contact') {
       const conversation = await this.prisma.conversation.findUnique({
@@ -507,7 +520,11 @@ export class MessagesService {
               data: { lastMessageAt: new Date() },
             });
 
-            this.gateway.emitNewMessage(conversationId, aiMessage);
+            this.gateway.emitNewMessage(
+              conversationId,
+              aiMessage.conversation.organizationId,
+              aiMessage,
+            );
 
             if (['whatsapp', 'instagram', 'facebook'].includes(aiMessage.conversation.channel.type)) {
               await this.sendChannelMessage(
@@ -525,12 +542,14 @@ export class MessagesService {
 
   private async sendChannelMessage(
     conversation: {
-      id: string; // Add id here
+      id: string;
+      organizationId: string;
       contactIdentifier: string;
       channel: {
         type: string;
         config: any;
         accessToken?: string | null;
+        provider?: string;
       };
     },
     message: string,
@@ -552,28 +571,22 @@ export class MessagesService {
             })
           : null;
 
-      const envToken = this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
+      let provider = channel.provider;
 
-      let provider = (channel as unknown as { provider?: string }).provider;
-
-      // Smart provider detection logic
       if (!provider || provider === 'whatsapp-official') {
-          const hasUazapiToken = !!(config?.token || envToken);
-          const hasOfficialConfig = !!(config?.phoneNumberId || channel.accessToken || this.configService.get('WHATSAPP_ACCESS_TOKEN'));
-          
-          if (config?.token || config?.instanceId) {
+          const uazapiCreds = getUazapiCredentials(channel);
+          const officialCreds = getOfficialWhatsAppCredentials(channel);
+          if (uazapiCreds.token || uazapiCreds.instanceId) {
              provider = 'uazapi';
-          } else if (hasUazapiToken && !hasOfficialConfig) {
-             provider = 'uazapi';
+          } else if (!officialCreds.phoneNumberId && !officialCreds.accessToken) {
+             provider = provider || 'whatsapp-official';
           }
       }
       
-      // Force Uazapi for Instagram/Facebook if not specified (since Official WhatsApp API doesn't support them directly here)
       if (channel.type === 'instagram' || channel.type === 'facebook') {
           provider = 'uazapi';
       }
 
-      // Explicit override from config
       if (config?.provider) {
           provider = config.provider;
       }
@@ -581,8 +594,7 @@ export class MessagesService {
       this.logger.log(`Sending message via provider: ${provider}, to: ${conversation.contactIdentifier} (${channel.type})`);
 
       if (provider === 'uazapi') {
-        // Use logic OR (||) to fallback to envToken if config.token is empty string
-        const token = (config?.token || envToken)?.trim();
+        const { token, serverUrl } = getUazapiCredentials(channel);
         this.logger.log(`Uazapi config - Token: ${token ? '***' + token.slice(-4) : 'missing'}`);
         
         if (!token) {
@@ -619,11 +631,7 @@ export class MessagesService {
         return;
       }
 
-      const rawAccessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
-      const rawPhoneNumberId = config?.phoneNumberId || this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-
-      const accessToken = rawAccessToken?.trim();
-      const phoneNumberId = rawPhoneNumberId?.trim();
+      const { accessToken, phoneNumberId } = getOfficialWhatsAppCredentials(channel);
 
       if (!phoneNumberId || !accessToken) {
         this.logger.error(
@@ -641,7 +649,11 @@ export class MessagesService {
             metadata: { isSystemError: true },
           },
         });
-        this.gateway.emitNewMessage(conversation.id, errorMsg);
+        this.gateway.emitNewMessage(
+          conversation.id,
+          conversation.organizationId,
+          errorMsg,
+        );
         return;
       }
 
@@ -730,8 +742,15 @@ export class MessagesService {
     const updated = await this.prisma.message.update({
       where: { id },
       data,
+      include: {
+        conversation: { select: { organizationId: true } },
+      },
     });
-    this.gateway.emitMessageUpdated(updated.conversationId, updated);
+    this.gateway.emitMessageUpdated(
+      updated.conversationId,
+      updated.conversation.organizationId,
+      updated,
+    );
     return updated;
   }
 

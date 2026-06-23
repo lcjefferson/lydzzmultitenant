@@ -129,12 +129,14 @@ export class InternalService {
   }
 
   async sendRoomMessage(roomId: string, userId: string, content: string, organizationId?: string) {
-    if (organizationId) {
-       const room = await this.prisma.conversation.findFirst({
-         where: { id: roomId, organizationId },
-       });
-       if (!room) throw new Error('Room not found or access denied');
-    }
+    const room = await this.prisma.conversation.findFirst({
+      where: organizationId
+        ? { id: roomId, organizationId }
+        : { id: roomId },
+      select: { organizationId: true },
+    });
+    if (!room) throw new Error('Room not found or access denied');
+
     const message = await this.prisma.message.create({
       data: {
         conversationId: roomId,
@@ -148,7 +150,7 @@ export class InternalService {
       where: { id: roomId },
       data: { lastMessageAt: new Date() },
     });
-    this.gateway.emitNewMessage(roomId, message);
+    this.gateway.emitNewMessage(roomId, room.organizationId, message);
     return message;
   }
 
@@ -230,12 +232,14 @@ export class InternalService {
   }
 
   async sendDMMessage(conversationId: string, userId: string, content: string, organizationId?: string) {
-    if (organizationId) {
-        const conv = await this.prisma.conversation.findFirst({
-            where: { id: conversationId, organizationId }
-        });
-        if (!conv) throw new Error('Conversation not found');
-    }
+    const conv = await this.prisma.conversation.findFirst({
+      where: organizationId
+        ? { id: conversationId, organizationId }
+        : { id: conversationId },
+      select: { organizationId: true },
+    });
+    if (!conv) throw new Error('Conversation not found');
+
     const message = await this.prisma.message.create({
       data: {
         conversationId,
@@ -249,7 +253,7 @@ export class InternalService {
       where: { id: conversationId },
       data: { lastMessageAt: new Date() },
     });
-    this.gateway.emitNewMessage(conversationId, message);
+    this.gateway.emitNewMessage(conversationId, conv.organizationId, message);
     return message;
   }
 

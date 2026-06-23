@@ -345,6 +345,14 @@ export default function ConversationsPage() {
     useEffect(() => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleNewMessage = (message: any) => {
+            if (
+                message?.organizationId &&
+                user?.organizationId &&
+                message.organizationId !== user.organizationId
+            ) {
+                return;
+            }
+
             const convId = message.conversationId ?? message.conversation?.id;
             const isForCurrent = effectiveSelectedId && convId === effectiveSelectedId;
 
@@ -382,6 +390,14 @@ export default function ConversationsPage() {
         // messageUpdated: atualizar mensagem existente no cache (ex.: anexos)
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const handleMessageUpdated = (message: any) => {
+            if (
+                message?.organizationId &&
+                user?.organizationId &&
+                message.organizationId !== user.organizationId
+            ) {
+                return;
+            }
+
             const convId = message.conversationId ?? message.conversation?.id;
             if (!convId || !message.id) return;
             queryClient.setQueryData(
@@ -414,7 +430,7 @@ export default function ConversationsPage() {
             offMessageCreated(handleNewMessage);
             offMessageUpdated(handleMessageUpdated);
         };
-    }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient, markAsRead]);
+    }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient, markAsRead, user?.organizationId]);
 
     // Ao abrir uma conversa ou quando as mensagens mudam, rolar até a última mensagem
     const messagesLength = messages?.length ?? 0;
