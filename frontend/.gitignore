@@ -22,8 +22,29 @@
 /build
 
 # misc
-.DS_Store
 *.pem
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+
+# IDEs and editors
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+.fleet/
+.cursor/projects/
+*.swp
+*~
 
 # debug
 npm-debug.log*

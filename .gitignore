@@ -15,8 +15,86 @@ build/
 dist/
 
 # Misc
-.DS_Store
 *.pem
+
+# ============================================
+# macOS
+# ============================================
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# ============================================
+# IDEs and editors
+# ============================================
+# Visual Studio Code
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
+
+# JetBrains (IntelliJ IDEA, WebStorm, PhpStorm, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Eclipse / STS
+.project
+.classpath
+.settings/
+.factorypath
+.buildpath
+.target
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim / Emacs
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# Fleet
+.fleet/
+
+# Cursor (cache local; mantém rules em .cursor/rules se versionadas)
+.cursor/projects/
+.cursor/*.json
+!.cursor/rules/
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Xcode
+*.xcuserstate
+*.xcworkspace
+xcuserdata/
+DerivedData/
+
+# Zed
+.zed/
 
 # Debug
 npm-debug.log*
@@ -37,6 +115,3 @@ uploads/
 # Prisma
 backend/prisma/migrations/migration_lock.toml
 
-# IDEs
-.vscode/
-.idea/

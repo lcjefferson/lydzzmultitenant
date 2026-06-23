@@ -8,3 +8,21 @@ dist/
 uploads/
 create_admin.js
 backend.log
+
+# macOS
+.DS_Store
+.AppleDouble
+._*
+.Spotlight-V100
+.Trashes
+
+# IDEs and editors
+.vscode/
+.idea/
+*.iml
+*.sublime-project
+*.sublime-workspace
+.fleet/
+.cursor/projects/
+*.swp
+*~
