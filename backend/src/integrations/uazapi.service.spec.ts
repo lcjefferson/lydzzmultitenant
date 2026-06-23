@@ -13,6 +13,7 @@ describe('UazapiService.parseIncomingMessage', () => {
   it('parses Fortalabs flat payload with PascalCase fields', () => {
     const result = service.parseIncomingMessage({
       BaseUrl: 'https://fortalabs.uazapi.com',
+      owner: '558596713639',
       Chat: '558588127637@s.whatsapp.net',
       Sender: '558588127637@s.whatsapp.net',
       chatid: '558588127637@s.whatsapp.net',
@@ -27,6 +28,8 @@ describe('UazapiService.parseIncomingMessage', () => {
         message: 'Olá, teste',
         messageId: 'msg-123',
         type: 'text',
+        serverUrl: 'https://fortalabs.uazapi.com',
+        instanceId: undefined,
       }),
     );
   });

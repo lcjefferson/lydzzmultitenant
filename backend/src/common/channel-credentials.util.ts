@@ -47,3 +47,18 @@ export function getConfigPhoneNumberId(channel: ChannelLike): string | undefined
   const { phoneNumberId } = getOfficialWhatsAppCredentials(channel);
   return phoneNumberId;
 }
+
+export function looksLikePhoneNumber(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const digits = value.trim().replace(/\D/g, '');
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+export function normalizeServiceUrl(url: unknown): string | undefined {
+  if (typeof url !== 'string' || !url.trim()) {
+    return undefined;
+  }
+  return url.trim().replace(/\/$/, '').toLowerCase();
+}

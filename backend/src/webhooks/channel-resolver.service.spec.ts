@@ -130,5 +130,24 @@ describe('ChannelResolverService', () => {
       const result = await service.resolveUazapiChannel('inst-a', {});
       expect(result.channel?.id).toBe('ch-u1');
     });
+
+    it('matches by serverUrl when instanceId looks like a phone number', async () => {
+      const channel = {
+        id: 'ch-fortalabs',
+        type: 'whatsapp',
+        provider: 'uazapi',
+        config: { serverUrl: 'https://fortalabs.uazapi.com', token: 'tok-a' },
+        organization: orgA,
+      };
+      prisma.channel.findMany.mockResolvedValue([channel]);
+
+      const result = await service.resolveUazapiChannel(
+        '558596713639',
+        {},
+        { serverUrl: 'https://fortalabs.uazapi.com/' },
+      );
+      expect(result.error).toBeNull();
+      expect(result.channel?.id).toBe('ch-fortalabs');
+    });
   });
 });

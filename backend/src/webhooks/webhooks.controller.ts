@@ -447,6 +447,10 @@ export class WebhooksController {
       const resolved = await this.channelResolver.resolveUazapiChannel(
         incomingMessage.instanceId,
         headers as Record<string, unknown>,
+        {
+          serverUrl: incomingMessage.serverUrl,
+          token: incomingMessage.token,
+        },
       );
 
       if (!resolved.channel) {

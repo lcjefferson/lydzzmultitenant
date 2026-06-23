@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
+import { looksLikePhoneNumber, normalizeServiceUrl } from '../common/channel-credentials.util';
 
 interface UazapiTextMessage {
   number: string;
@@ -494,6 +495,8 @@ export class UazapiService {
     timestamp: string;
     type: string;
     instanceId?: string;
+    serverUrl?: string;
+    token?: string;
     contactName?: string;
     isGroup?: boolean;
     fromMe?: boolean;
@@ -526,8 +529,8 @@ export class UazapiService {
       } else if ((eventType === 'messages' || eventType === 'MESSAGE') && payload.message) {
          // Uazapi "messages" event structure
          messageData = typeof payload.message === 'string' ? JSON.parse(payload.message) : payload.message;
-         // Map root owner to instanceId if available
-         if (payload.owner && !payload.instanceId) {
+         // Map root owner to instanceId only when it is a real instance id (not a phone)
+         if (payload.owner && !payload.instanceId && !looksLikePhoneNumber(payload.owner)) {
              (payload as any).instanceId = payload.owner;
          }
       } else if (
@@ -737,11 +740,38 @@ export class UazapiService {
       if (type === 'StickerMessage') type = 'sticker';
       if (type === 'conversation') type = 'text';
 
-      const instanceId =
-        payload.instanceId ||
-        payload.instance_id ||
-        payload.owner ||
-        pickField(payload, 'instanceName', 'InstanceName');
+      const serverUrl =
+        normalizeServiceUrl(
+          pickField(payload, 'BaseUrl', 'baseUrl', 'serverUrl', 'ServerUrl'),
+        ) ||
+        normalizeServiceUrl(
+          pickField(messageData, 'BaseUrl', 'baseUrl', 'serverUrl', 'ServerUrl'),
+        );
+
+      const token = firstString(
+        pickField(payload, 'token', 'Token', 'apikey', 'apiKey'),
+      ) || firstString(pickField(messageData, 'token', 'Token', 'apikey', 'apiKey'));
+
+      let instanceId =
+        firstString(
+          pickField(payload, 'instanceId', 'instance_id', 'InstanceId'),
+        ) ||
+        firstString(
+          pickField(messageData, 'instanceId', 'InstanceId', 'instance_id'),
+        ) ||
+        firstString(
+          pickField(payload, 'instanceName', 'InstanceName'),
+        ) ||
+        firstString(
+          pickField(messageData, 'instanceName', 'InstanceName'),
+        );
+
+      const ownerCandidate =
+        pickField(payload, 'owner', 'Owner') ??
+        pickField(messageData, 'owner', 'Owner');
+      if (!instanceId && ownerCandidate && !looksLikePhoneNumber(ownerCandidate)) {
+        instanceId = firstString(ownerCandidate);
+      }
       const contactName =
         firstString(
           pickField(
@@ -970,7 +1000,9 @@ export class UazapiService {
         messageId,
         timestamp,
         type,
-        instanceId, 
+        instanceId: instanceId || undefined,
+        serverUrl,
+        token: token || undefined,
         contactName,
         isGroup,
         fromMe,
