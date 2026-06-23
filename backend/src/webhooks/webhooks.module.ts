@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { WebhooksService } from './webhooks.service';
+import { ChannelResolverService } from './channel-resolver.service';
 import { WebhooksController } from './webhooks.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -16,7 +17,7 @@ import { MessagesModule } from '../messages/messages.module';
     MessagesModule,
   ],
   controllers: [WebhooksController],
-  providers: [WebhooksService],
-  exports: [WebhooksService],
+  providers: [WebhooksService, ChannelResolverService],
+  exports: [WebhooksService, ChannelResolverService],
 })
 export class WebhooksModule {}

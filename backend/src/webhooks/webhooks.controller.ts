@@ -28,6 +28,8 @@ import { ConversationsService } from '../conversations/conversations.service';
 import { Prisma } from '@prisma/client';
 import { MessagesService } from '../messages/messages.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
+import { ChannelResolverService } from './channel-resolver.service';
+import { getUazapiCredentials } from '../common/channel-credentials.util';
 
 @Controller('webhooks')
 export class WebhooksController {
@@ -39,6 +41,7 @@ export class WebhooksController {
     private readonly prisma: PrismaService,
     private readonly conversationsService: ConversationsService,
     private readonly messagesService: MessagesService,
+    private readonly channelResolver: ChannelResolverService,
   ) {}
   private readonly logger = new Logger(WebhooksController.name);
 
@@ -246,29 +249,18 @@ export class WebhooksController {
         `WhatsApp inbound from=${incomingMessage.from} phoneNumberId=${incomingMessage.phoneNumberId ?? 'n/a'} type=${incomingMessage.type}`,
       );
 
-      const activeChannels = await this.prisma.channel.findMany({
-        where: { type: 'whatsapp' },
-        include: { organization: true },
-      });
+      const resolved = await this.channelResolver.resolveOfficialWhatsAppChannel(
+        incomingMessage.phoneNumberId,
+      );
 
-      let channel = activeChannels[0] || null;
-      if (incomingMessage.phoneNumberId) {
-        const incomingId = String(incomingMessage.phoneNumberId).trim();
-        const matched = activeChannels.find((ch) => {
-          const cfg =
-            typeof (ch as any).config === 'object' && (ch as any).config
-              ? ((ch as any).config as { phoneNumberId?: string })
-              : undefined;
-          const channelId = cfg?.phoneNumberId != null ? String(cfg.phoneNumberId).trim() : '';
-          return channelId === incomingId;
-        });
-        channel = matched || channel;
+      if (!resolved.channel) {
+        this.logger.error(
+          `WhatsApp webhook channel resolution failed: ${resolved.error}`,
+        );
+        return { status: 'no_channel', error: resolved.error };
       }
 
-      if (!channel) {
-        this.logger.error('No WhatsApp channel found for incoming message');
-        return { status: 'no_channel' };
-      }
+      const channel = resolved.channel;
 
       const phone = incomingMessage.from;
       // Try to match phone with or without country code (BR only for now as main case)
@@ -320,7 +312,11 @@ export class WebhooksController {
 
       if (!conversation && ((existingLead as any)?.conversation || lead)) {
         const convByLead = await this.prisma.conversation.findFirst({
-          where: { leadId: existingLead?.id ?? lead.id },
+          where: {
+            leadId: existingLead?.id ?? lead.id,
+            organizationId: channel.organization.id,
+            channelId: channel.id,
+          },
         });
         conversation = convByLead || conversation;
       }
@@ -448,82 +444,22 @@ export class WebhooksController {
 
       this.logger.log(`Parsed message: ${JSON.stringify(incomingMessage, null, 2)}`);
 
-      const channels = await this.prisma.channel.findMany({
-        where: { type: { in: ['whatsapp', 'instagram', 'facebook'] } },
-        include: { organization: true },
-      });
-      this.logger.log(`Found ${channels.length} channels (whatsapp/instagram/facebook)`);
-      
-      // Debug log for channels
-      channels.forEach(ch => {
-          const cfg = (ch as any).config || {};
-          this.logger.log(`Channel [${ch.id}]: Name=${ch.name}, Provider=${ch.provider}, InstanceId=${cfg.instanceId}`);
-      });
+      const resolved = await this.channelResolver.resolveUazapiChannel(
+        incomingMessage.instanceId,
+        headers as Record<string, unknown>,
+      );
 
-      let channel: any = null;
-
-      // 1. Try to match by instanceId (Most accurate for Uazapi)
-      if (incomingMessage.instanceId) {
-        channel = channels.find((ch) => {
-          const cfg =
-            typeof (ch as any).config === 'object' && (ch as any).config
-              ? ((ch as any).config as { instanceId?: string })
-              : undefined;
-          // Case insensitive comparison
-          return cfg?.instanceId && incomingMessage.instanceId && cfg.instanceId.toLowerCase() === incomingMessage.instanceId.toLowerCase();
-        });
-        
-        if (channel) {
-            this.logger.log(`Matched channel by InstanceId: ${channel.name} (${channel.id})`);
-        } else {
-            this.logger.warn(`No channel matched for InstanceId: ${incomingMessage.instanceId} (checked ${channels.length} channels)`);
-        }
+      if (!resolved.channel) {
+        this.logger.error(
+          `Uazapi webhook channel resolution failed: ${resolved.error} (instanceId=${incomingMessage.instanceId ?? 'n/a'})`,
+        );
+        return { status: 'no_channel', error: resolved.error };
       }
 
-      // 1.5 Try to match by Token in headers (Fallback if instanceId missing/mismatch)
-      if (!channel && headers) {
-          // Check for 'token' or 'apikey' or 'authorization' in headers
-          const headerToken = headers['token'] || headers['apikey'] || headers['authorization'];
-          
-          if (headerToken) {
-               channel = channels.find((ch) => {
-                  const cfg = typeof (ch as any).config === 'object' ? (ch as any).config as any : {};
-                  return cfg.token === headerToken || (cfg.token && `Bearer ${cfg.token}` === headerToken);
-              });
-              
-              if (channel) {
-                  this.logger.log(`Matched channel by Header Token: ${channel.name} (${channel.id})`);
-              }
-          }
-      }
-
-      // 2. Fallback: Find first Uazapi provider if no instanceId matched
-      if (!channel) {
-          const uazapiChannels = channels.filter(ch => {
-              // Use the provider column as the primary source of truth
-              if (ch.provider === 'uazapi') return true;
-
-              // Fallback to config for legacy or inconsistent data
-              const cfg = typeof (ch as any).config === 'object' ? (ch as any).config as any : {};
-              return cfg.provider === 'uazapi';
-          });
-
-          if (uazapiChannels.length === 1) {
-              channel = uazapiChannels[0];
-              this.logger.log(`Using fallback channel (single Uazapi instance found): ${channel.name} (${channel.id})`);
-          } else if (uazapiChannels.length > 1) {
-              this.logger.warn(`Multiple Uazapi channels found (${uazapiChannels.length}) and no instanceId matched. Cannot determine target channel safely.`);
-              this.logger.warn(`Channels found: ${uazapiChannels.map(c => `${c.name} (${c.id})`).join(', ')}`);
-          } else {
-              this.logger.warn('No Uazapi channel found in fallback search.');
-          }
-      }
-      
-      if (!channel) {
-        this.logger.error(`No channel found for Uazapi instance: ${incomingMessage.instanceId}`);
-        this.logger.error(`Available channels: ${channels.map(c => `${c.name} (${(c as any).config?.instanceId})`).join(', ')}`);
-        return { status: 'no_channel' };
-      }
+      const channel = resolved.channel;
+      this.logger.log(
+        `Uazapi channel resolved: ${channel.name} (${channel.id}) org=${channel.organization.id}`,
+      );
 
       const phone = incomingMessage.from;
       // Try to match phone with or without country code (BR only for now as main case)
@@ -575,7 +511,11 @@ export class WebhooksController {
 
       if (!conversation && ((existingLead as any)?.conversation || lead)) {
         const convByLead = await this.prisma.conversation.findFirst({
-          where: { leadId: existingLead?.id ?? lead.id },
+          where: {
+            leadId: existingLead?.id ?? lead.id,
+            organizationId: channel.organization.id,
+            channelId: channel.id,
+          },
         });
         conversation = convByLead || conversation;
       }
@@ -639,14 +579,10 @@ export class WebhooksController {
              } 
              // If we have no base64 but have mediaKey/messageId, try to download
              else if (incomingMessage.messageId) {
-                 const cfg = (channel?.config && typeof channel.config === 'object' ? channel.config : {}) as { token?: string; serverUrl?: string };
-                 let token = cfg.token;
-                 const serverUrl = cfg.serverUrl;
+                 const { token, serverUrl } = getUazapiCredentials(channel);
                  
-                 // If token is missing in channel config, try env var
                  if (!token) {
-                     token = process.env.UAZAPI_INSTANCE_TOKEN;
-                     if (token) this.logger.log('Using UAZAPI_INSTANCE_TOKEN from env as fallback');
+                     this.logger.warn(`No token found in channel config for media download (message ${incomingMessage.messageId})`);
                  }
 
                  this.logger.log(`Processing media for message ${incomingMessage.messageId}. Token available: ${!!token}`);

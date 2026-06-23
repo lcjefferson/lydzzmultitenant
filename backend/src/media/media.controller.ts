@@ -1,14 +1,15 @@
 import { Controller, Get, Param, Query, UseGuards, Res } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { TenantGuard } from '../auth/guards/tenant.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsAppService } from '../integrations/whatsapp.service';
 import type { Response } from 'express';
 import axios, { AxiosResponse } from 'axios';
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { Prisma } from '@prisma/client';
+import { getConfigPhoneNumberId, getOfficialWhatsAppCredentials } from '../common/channel-credentials.util';
 
 @Controller('media')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, TenantGuard)
 export class MediaController {
   constructor(
     private readonly prisma: PrismaService,
@@ -22,47 +23,34 @@ export class MediaController {
     @GetUser('organizationId') organizationId: string,
     @Res() res: Response,
   ) {
-    const where: Prisma.ChannelWhereInput = {
-      type: 'whatsapp',
-    };
-    if (organizationId) {
-      where.organizationId = organizationId;
-    }
-
     const channels = await this.prisma.channel.findMany({
-      where,
+      where: {
+        type: 'whatsapp',
+        organizationId,
+      },
     });
-    
-    // Prioritize channel with specific phoneNumberId if provided
-    let channel = phoneNumberId 
-      ? channels.find(ch => {
-          const cfg = typeof ch.config === 'object' && ch.config ? (ch.config as { phoneNumberId?: string }) : undefined;
-          return cfg?.phoneNumberId === phoneNumberId;
-        })
-      : null;
 
-    // If no specific channel found, look for any channel with a valid access token, prioritizing official provider
-    if (!channel) {
-      // First try to find an official channel with a token
-      channel = channels.find(ch => 
-        ch.provider === 'whatsapp-official' && ch.accessToken && ch.accessToken.length > 0
-      );
-      
-      // Fallback to any channel with an access token
-      if (!channel) {
-        channel = channels.find(ch => ch.accessToken && ch.accessToken.length > 0);
-      }
-      
-      // Final fallback to just the first channel (legacy behavior)
-      if (!channel) {
-        channel = channels[0];
-      }
+    let channel = phoneNumberId
+      ? channels.find((ch) => getConfigPhoneNumberId(ch) === phoneNumberId.trim())
+      : undefined;
+
+    if (!channel && phoneNumberId) {
+      res.status(404).send('Channel not found for phoneNumberId');
+      return;
     }
 
-    const accessToken = channel?.accessToken || undefined;
+    if (!channel) {
+      channel = channels.find((ch) => {
+        const creds = getOfficialWhatsAppCredentials(ch);
+        return !!(creds.accessToken && creds.phoneNumberId);
+      });
+    }
+
+    const { accessToken } = channel
+      ? getOfficialWhatsAppCredentials(channel)
+      : { accessToken: undefined };
+
     if (!channel || !accessToken) {
-      // Log for debugging
-      console.error(`MediaController: No suitable channel found. Org: ${organizationId}, PhoneId: ${phoneNumberId}`);
       res.status(404).send('Channel not found or missing access token');
       return;
     }

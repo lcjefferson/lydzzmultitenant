@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
 import { Channel } from '@prisma/client';
 import { UazapiService } from '../integrations/uazapi.service';
+import { getConfigPhoneNumberId } from '../common/channel-credentials.util';
 
 @Injectable()
 export class ChannelsService {
@@ -11,6 +12,30 @@ export class ChannelsService {
     private readonly prisma: PrismaService,
     private readonly uazapiService: UazapiService,
   ) {}
+
+  private async ensureUniquePhoneNumberId(
+    phoneNumberId: string,
+    excludeChannelId?: string,
+  ): Promise<void> {
+    const trimmed = phoneNumberId.trim();
+    if (!trimmed) return;
+
+    const channels = await this.prisma.channel.findMany({
+      where: {
+        type: 'whatsapp',
+        ...(excludeChannelId ? { id: { not: excludeChannelId } } : {}),
+      },
+    });
+
+    const conflict = channels.find(
+      (ch) => getConfigPhoneNumberId(ch) === trimmed,
+    );
+    if (conflict) {
+      throw new ConflictException(
+        'Este Phone Number ID já está vinculado a outro canal no sistema',
+      );
+    }
+  }
 
   async create(dto: CreateChannelDto, organizationId: string): Promise<Channel> {
     const provider = dto.provider ?? 'whatsapp-official';
@@ -47,6 +72,18 @@ export class ChannelsService {
             token: (baseConfig as Record<string, unknown>)?.['token'] ?? '',
           }
         : baseConfig;
+
+    if (dto.type === 'whatsapp' && provider === 'whatsapp-official') {
+      const phoneNumberId = String(
+        (mergedConfig as Record<string, unknown>)?.phoneNumberId ?? '',
+      ).trim();
+      if (!phoneNumberId) {
+        throw new BadRequestException(
+          'Phone Number ID é obrigatório para WhatsApp Oficial',
+        );
+      }
+      await this.ensureUniquePhoneNumberId(phoneNumberId);
+    }
 
     return this.prisma.channel.create({
       data: {
@@ -108,6 +145,26 @@ export class ChannelsService {
 
     if (dto.accessToken) {
         dto.accessToken = dto.accessToken.trim();
+    }
+
+    const mergedForValidation = {
+      ...(typeof channel.config === 'object' && channel.config
+        ? (channel.config as Record<string, unknown>)
+        : {}),
+      ...(typeof dto.config === 'object' && dto.config
+        ? (dto.config as Record<string, unknown>)
+        : {}),
+    };
+    const nextProvider =
+      dto.provider ?? (channel as { provider?: string }).provider ?? 'whatsapp-official';
+    if (channel.type === 'whatsapp' && nextProvider === 'whatsapp-official') {
+      const phoneNumberId = String(mergedForValidation.phoneNumberId ?? '').trim();
+      if (!phoneNumberId) {
+        throw new BadRequestException(
+          'Phone Number ID é obrigatório para WhatsApp Oficial',
+        );
+      }
+      await this.ensureUniquePhoneNumberId(phoneNumberId, id);
     }
     
     return this.prisma.channel.update({

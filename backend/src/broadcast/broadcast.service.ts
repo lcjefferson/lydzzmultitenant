@@ -6,6 +6,10 @@ import { ConfigService } from '@nestjs/config';
 import { ConversationsService } from '../conversations/conversations.service';
 import { MessagesService } from '../messages/messages.service';
 import { SendBroadcastDto } from './dto/send-broadcast.dto';
+import {
+  getOfficialWhatsAppCredentials,
+  getUazapiCredentials,
+} from '../common/channel-credentials.util';
 
 /** Delay between sends to avoid Meta rate limits and block risk. No delay before first send. */
 function sleep(ms: number): Promise<void> {
@@ -61,8 +65,7 @@ export class BroadcastService {
       return [];
     }
 
-    const wabaId = config?.wabaId;
-    const accessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
+    const { wabaId, accessToken } = getOfficialWhatsAppCredentials(channel);
     if (!wabaId || !accessToken) {
       return [];
     }
@@ -234,10 +237,12 @@ export class BroadcastService {
       }
     }
 
-    const accessToken = config?.accessToken || channel.accessToken || this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
-    const phoneNumberId = config?.phoneNumberId || this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-    const token = config?.token || this.configService.get<string>('UAZAPI_INSTANCE_TOKEN');
-    const serverUrl = config?.serverUrl;
+    const officialCreds = getOfficialWhatsAppCredentials(channel);
+    const uazapiCreds = getUazapiCredentials(channel);
+    const accessToken = officialCreds.accessToken;
+    const phoneNumberId = officialCreds.phoneNumberId;
+    const token = uazapiCreds.token;
+    const serverUrl = uazapiCreds.serverUrl;
 
     const uazapiVariations = [dto.message, ...(dto.messageVariations || [])].filter((m): m is string => !!m?.trim());
 
