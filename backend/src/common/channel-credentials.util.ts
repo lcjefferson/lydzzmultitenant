@@ -43,7 +43,9 @@ export function getUazapiCredentials(channel: ChannelLike): {
   };
 }
 
-export function getConfigPhoneNumberId(channel: ChannelLike): string | undefined {
+export function getConfigPhoneNumberId(
+  channel: ChannelLike,
+): string | undefined {
   const { phoneNumberId } = getOfficialWhatsAppCredentials(channel);
   return phoneNumberId;
 }

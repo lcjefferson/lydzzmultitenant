@@ -51,7 +51,7 @@ export class NotificationsService {
     // Create notifications in batch (or loop if createMany not supported for relations easily with different userIds)
     // Prisma createMany is supported for simple models, but let's see if we can do it efficiently.
     // Actually, createMany is fine.
-    
+
     await this.prisma.notification.createMany({
       data: users.map((u) => ({
         type,
@@ -65,18 +65,21 @@ export class NotificationsService {
     // Emit event (broadcasting to everyone, frontend filters or reloads)
     // Since we don't have per-user socket rooms yet, we just emit one event.
     // Ideally we would emit to specific user rooms, but for now this triggers the reload.
-    // To be slightly better, we could emit with a target user list if the frontend supported it, 
+    // To be slightly better, we could emit with a target user list if the frontend supported it,
     // but the frontend currently just listens to 'notificationCreated' and reloads.
     this.gateway.emitNotificationCreated({
       type,
       entityId,
       organizationId,
       // We can send a flag or list of userIds if we want to optimize frontend later
-      targetUserIds: users.map(u => u.id)
+      targetUserIds: users.map((u) => u.id),
     });
   }
 
-  async listForUser(userId: string, organizationId?: string): Promise<Notification[]> {
+  async listForUser(
+    userId: string,
+    organizationId?: string,
+  ): Promise<Notification[]> {
     const where: Prisma.NotificationWhereInput = { userId };
     if (organizationId) {
       where.organizationId = organizationId;
@@ -88,7 +91,11 @@ export class NotificationsService {
     });
   }
 
-  async markRead(id: string, userId: string, organizationId?: string): Promise<Notification> {
+  async markRead(
+    id: string,
+    userId: string,
+    organizationId?: string,
+  ): Promise<Notification> {
     const where: Prisma.NotificationWhereInput = {
       id,
       userId,

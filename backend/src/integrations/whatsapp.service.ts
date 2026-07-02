@@ -46,7 +46,9 @@ export class WhatsAppService {
           err.code === 'ECONNRESET';
         if (!isRetryable || attempt === maxRetries) throw err;
         const delayMs = 1000 * Math.pow(2, attempt - 1);
-        this.logger.warn(`WhatsApp API attempt ${attempt}/${maxRetries} failed (${status ?? err.code}). Retrying in ${delayMs}ms...`);
+        this.logger.warn(
+          `WhatsApp API attempt ${attempt}/${maxRetries} failed (${status ?? err.code}). Retrying in ${delayMs}ms...`,
+        );
         await new Promise((r) => setTimeout(r, delayMs));
       }
     }
@@ -72,9 +74,11 @@ export class WhatsAppService {
       // Heuristic for Brazilian numbers: if 10 or 11 digits, likely missing country code 55
       if (cleanTo.length === 10 || cleanTo.length === 11) {
         cleanTo = '55' + cleanTo;
-        this.logger.log(`Added country code 55 to number. Original: ${to}, New: ${cleanTo}`);
+        this.logger.log(
+          `Added country code 55 to number. Original: ${to}, New: ${cleanTo}`,
+        );
       }
-      
+
       const payload: WhatsAppTextMessage = {
         messaging_product: 'whatsapp',
         to: cleanTo,
@@ -84,7 +88,9 @@ export class WhatsAppService {
         },
       };
 
-      this.logger.log(`Sending WhatsApp message to ${cleanTo} using PhoneID ${cleanPhoneId}`);
+      this.logger.log(
+        `Sending WhatsApp message to ${cleanTo} using PhoneID ${cleanPhoneId}`,
+      );
 
       const response = await this.postWithRetry(
         `${this.apiUrl}/${cleanPhoneId}/messages`,
@@ -141,13 +147,13 @@ export class WhatsAppService {
       // Validate media URL
       let validMediaUrl = mediaUrl;
       try {
-          // Check if it's a valid URL and encode if necessary
-          const urlObj = new URL(mediaUrl);
-          validMediaUrl = urlObj.toString();
+        // Check if it's a valid URL and encode if necessary
+        const urlObj = new URL(mediaUrl);
+        validMediaUrl = urlObj.toString();
       } catch (e) {
-          // If it's not a valid URL (e.g. local path), try to fix it or throw error
-          this.logger.error(`Invalid Media URL provided: ${mediaUrl}`);
-          return { success: false, error: `Invalid Media URL: ${mediaUrl}` };
+        // If it's not a valid URL (e.g. local path), try to fix it or throw error
+        this.logger.error(`Invalid Media URL provided: ${mediaUrl}`);
+        return { success: false, error: `Invalid Media URL: ${mediaUrl}` };
       }
 
       // Check for WebM and ensure it's treated as audio if possible, or keep as audio
@@ -155,12 +161,14 @@ export class WhatsAppService {
       // WebM is often used by browsers for recording.
       let finalMediaType = mediaType;
       const urlObj = new URL(validMediaUrl);
-      
+
       // If it's a webm or ogg audio, we'll keep it as 'audio'
-      const isWebm = validMediaUrl.endsWith('.webm') || urlObj.pathname.endsWith('.webm');
-      const isOgg = validMediaUrl.endsWith('.ogg') || urlObj.pathname.endsWith('.ogg');
+      const isWebm =
+        validMediaUrl.endsWith('.webm') || urlObj.pathname.endsWith('.webm');
+      const isOgg =
+        validMediaUrl.endsWith('.ogg') || urlObj.pathname.endsWith('.ogg');
       if (mediaType === 'audio' || isWebm || isOgg) {
-          finalMediaType = 'audio';
+        finalMediaType = 'audio';
       }
 
       const payload: any = {
@@ -171,39 +179,54 @@ export class WhatsAppService {
 
       // Map internal types to WhatsApp types
       const mediaObject: any = {
-          link: validMediaUrl
+        link: validMediaUrl,
       };
 
       // Ensure HTTPS for non-localhost URLs as required by Meta
-      if (mediaObject.link.startsWith('http://') && !mediaObject.link.includes('localhost') && !mediaObject.link.includes('127.0.0.1')) {
-          this.logger.log(`Upgrading media URL to HTTPS for Meta compatibility: ${mediaObject.link}`);
-          mediaObject.link = mediaObject.link.replace('http://', 'https://');
+      if (
+        mediaObject.link.startsWith('http://') &&
+        !mediaObject.link.includes('localhost') &&
+        !mediaObject.link.includes('127.0.0.1')
+      ) {
+        this.logger.log(
+          `Upgrading media URL to HTTPS for Meta compatibility: ${mediaObject.link}`,
+        );
+        mediaObject.link = mediaObject.link.replace('http://', 'https://');
       }
 
       // WhatsApp Cloud API specifically requires audio files to NOT have a caption
       if (caption && finalMediaType !== 'audio') {
-          mediaObject.caption = caption;
+        mediaObject.caption = caption;
       }
 
       // Voice Note (PTT) hint for WhatsApp Cloud API
       if (finalMediaType === 'audio') {
-          mediaObject.voice = true;
+        mediaObject.voice = true;
       }
 
       // If it's a document, set filename
       if (finalMediaType === 'document') {
-          mediaObject.filename = urlObj.pathname.split('/').pop() || 'file';
+        mediaObject.filename = urlObj.pathname.split('/').pop() || 'file';
       }
 
       payload[finalMediaType] = mediaObject;
 
-      this.logger.log(`Sending WhatsApp ${finalMediaType} to ${cleanTo} using PhoneID ${cleanPhoneId}. Payload: ${JSON.stringify(payload)}`);
+      this.logger.log(
+        `Sending WhatsApp ${finalMediaType} to ${cleanTo} using PhoneID ${cleanPhoneId}. Payload: ${JSON.stringify(payload)}`,
+      );
 
       if (validMediaUrl.includes('localhost')) {
-          this.logger.warn(`Media URL contains 'localhost'. WhatsApp cannot download the file. Set APP_URL to a public URL (e.g. ngrok).`);
+        this.logger.warn(
+          `Media URL contains 'localhost'. WhatsApp cannot download the file. Set APP_URL to a public URL (e.g. ngrok).`,
+        );
       }
-      if (finalMediaType === 'audio' && validMediaUrl.toLowerCase().includes('webm')) {
-          this.logger.warn(`WhatsApp does not support WebM. Audio should be converted to OGG on upload.`);
+      if (
+        finalMediaType === 'audio' &&
+        validMediaUrl.toLowerCase().includes('webm')
+      ) {
+        this.logger.warn(
+          `WhatsApp does not support WebM. Audio should be converted to OGG on upload.`,
+        );
       }
 
       const response = await this.postWithRetry(
@@ -218,19 +241,25 @@ export class WhatsAppService {
         },
       );
 
-      this.logger.log(`WhatsApp API Response: ${JSON.stringify(response.data)}`);
+      this.logger.log(
+        `WhatsApp API Response: ${JSON.stringify(response.data)}`,
+      );
       const data = response.data as { messages?: Array<{ id?: string }> };
       return { success: true };
     } catch (error) {
       if (axios.isAxiosError(error)) {
         const errorData = error.response?.data;
-        this.logger.error(`WhatsApp API Error Details: ${JSON.stringify(errorData)}`);
-        return { 
-          success: false, 
-          error: `WhatsApp API Error: ${error.response?.status} - ${JSON.stringify(errorData)}` 
+        this.logger.error(
+          `WhatsApp API Error Details: ${JSON.stringify(errorData)}`,
+        );
+        return {
+          success: false,
+          error: `WhatsApp API Error: ${error.response?.status} - ${JSON.stringify(errorData)}`,
         };
       }
-      this.logger.error(`Error sending WhatsApp media message: ${(error as Error).message}`);
+      this.logger.error(
+        `Error sending WhatsApp media message: ${(error as Error).message}`,
+      );
       return { success: false, error: (error as Error).message };
     }
   }
@@ -289,23 +318,38 @@ export class WhatsAppService {
   async listMessageTemplates(
     wabaId: string,
     accessToken: string,
-  ): Promise<Array<{ name: string; language: string; status: string; components?: unknown }>> {
+  ): Promise<
+    Array<{
+      name: string;
+      language: string;
+      status: string;
+      components?: unknown;
+    }>
+  > {
     try {
       const cleanWabaId = String(wabaId).replace(/\D/g, '') || wabaId;
-      const response = await axios.get<{ data?: Array<{ name: string; language: string; status: string; components?: unknown }> }>(
-        `${this.apiUrl}/${cleanWabaId}/message_templates`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          timeout: 15000,
-        },
-      );
+      const response = await axios.get<{
+        data?: Array<{
+          name: string;
+          language: string;
+          status: string;
+          components?: unknown;
+        }>;
+      }>(`${this.apiUrl}/${cleanWabaId}/message_templates`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        timeout: 15000,
+      });
       const list = response.data?.data ?? [];
       return list.filter((t) => t.status === 'APPROVED');
     } catch (error) {
       if (axios.isAxiosError(error)) {
-        this.logger.error(`Failed to list templates: ${error.response?.status} ${JSON.stringify(error.response?.data)}`);
+        this.logger.error(
+          `Failed to list templates: ${error.response?.status} ${JSON.stringify(error.response?.data)}`,
+        );
       } else {
-        this.logger.error(`Failed to list templates: ${(error as Error).message}`);
+        this.logger.error(
+          `Failed to list templates: ${(error as Error).message}`,
+        );
       }
       return [];
     }
@@ -406,7 +450,8 @@ export class WhatsAppService {
         messageId: message.id ?? '',
         timestamp: message.timestamp ?? '',
         type: msgType,
-        phoneNumberId: rawPhoneNumberId != null ? String(rawPhoneNumberId) : undefined,
+        phoneNumberId:
+          rawPhoneNumberId != null ? String(rawPhoneNumberId) : undefined,
         contactName: value?.contacts?.[0]?.profile?.name,
         mediaId,
       };

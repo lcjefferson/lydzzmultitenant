@@ -5,6 +5,17 @@ import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { Organization, Prisma } from '@prisma/client';
 import { EncryptionService } from '../common/encryption.service';
 
+// Etapas canônicas do pipeline (valores gravados em Lead.status)
+export const PIPELINE_STAGES = [
+  'Lead Novo',
+  'Em Qualificação',
+  'Qualificado (QUENTE)',
+  'Reuniões Agendadas',
+  'Proposta enviada (Follow-up)',
+  'No Show (Não compareceu) (Follow-up)',
+  'Contrato fechado',
+] as const;
+
 @Injectable()
 export class OrganizationsService {
   constructor(
@@ -23,7 +34,9 @@ export class OrganizationsService {
 
   async findAll(organizationId?: string): Promise<Organization[]> {
     if (organizationId) {
-      return this.prisma.organization.findMany({ where: { id: organizationId } });
+      return this.prisma.organization.findMany({
+        where: { id: organizationId },
+      });
     }
     return this.prisma.organization.findMany();
   }
@@ -59,6 +72,22 @@ export class OrganizationsService {
       data.openaiApiKey = this.encryptionService.encrypt(
         dto.openaiApiKey.trim(),
       );
+    }
+
+    if (typeof dto.pipelineStageLabels !== 'undefined') {
+      // Aceita apenas chaves de etapas canônicas e rótulos de texto não vazios
+      const sanitized: Record<string, string> = {};
+      for (const stage of PIPELINE_STAGES) {
+        const label = dto.pipelineStageLabels?.[stage];
+        if (
+          typeof label === 'string' &&
+          label.trim() &&
+          label.trim() !== stage
+        ) {
+          sanitized[stage] = label.trim().slice(0, 60);
+        }
+      }
+      data.pipelineStageLabels = sanitized;
     }
 
     return this.prisma.organization.update({

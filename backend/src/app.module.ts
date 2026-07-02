@@ -23,6 +23,7 @@ import { InternalModule } from './internal/internal.module';
 import { MediaModule } from './media/media.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { BroadcastModule } from './broadcast/broadcast.module';
+import { MeetingsModule } from './meetings/meetings.module';
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { BroadcastModule } from './broadcast/broadcast.module';
     MediaModule,
     NotificationsModule,
     BroadcastModule,
+    MeetingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

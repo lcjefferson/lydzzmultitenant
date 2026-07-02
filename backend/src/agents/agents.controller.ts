@@ -20,7 +20,10 @@ export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
 
   @Post()
-  create(@Body() createAgentDto: CreateAgentDto, @GetUser('organizationId') organizationId: string) {
+  create(
+    @Body() createAgentDto: CreateAgentDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.agentsService.create(createAgentDto, organizationId);
   }
 
@@ -30,7 +33,10 @@ export class AgentsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  findOne(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.agentsService.findOne(id, organizationId);
   }
 
@@ -44,7 +50,10 @@ export class AgentsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  remove(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.agentsService.remove(id, organizationId);
   }
 }

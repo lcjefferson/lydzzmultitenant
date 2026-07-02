@@ -7,7 +7,9 @@ async function bootstrap() {
   const isProd = process.env.NODE_ENV === 'production';
   const app = await NestFactory.create(AppModule, {
     bufferLogs: isProd,
-    logger: isProd ? ['error', 'warn'] : ['log', 'error', 'warn', 'debug', 'verbose'],
+    logger: isProd
+      ? ['error', 'warn']
+      : ['log', 'error', 'warn', 'debug', 'verbose'],
   });
 
   // Increase body limit for Base64 images
@@ -38,13 +40,15 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   const port = process.env.PORT || 3001;
-  await app.listen(port,'0.0.0.0');
+  await app.listen(port, '0.0.0.0');
 
   const logger = new console.Console(process.stdout, process.stderr);
   logger.log(`🚀 Server running on http://localhost:${port}`);
   logger.log(`📚 API available at http://localhost:${port}/api`);
   logger.log(`🕒 Startup Time: ${new Date().toISOString()}`);
-  logger.log(`📦 Backend Version Check: Ensure logs show this new message to confirm deployment.`);
+  logger.log(
+    `📦 Backend Version Check: Ensure logs show this new message to confirm deployment.`,
+  );
 }
 
 void bootstrap();

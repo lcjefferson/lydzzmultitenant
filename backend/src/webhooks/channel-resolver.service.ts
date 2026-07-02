@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Channel, Organization, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { getConfigPhoneNumberId, looksLikePhoneNumber, normalizeServiceUrl } from '../common/channel-credentials.util';
+import {
+  getConfigPhoneNumberId,
+  looksLikePhoneNumber,
+  normalizeServiceUrl,
+} from '../common/channel-credentials.util';
 
 export type ChannelWithOrg = Channel & { organization: Organization };
 
@@ -72,7 +76,11 @@ export class ChannelResolverService {
       const provider = (ch as { provider?: string }).provider;
       const cfg =
         typeof ch.config === 'object' && ch.config
-          ? (ch.config as { provider?: string; token?: string; instanceId?: string })
+          ? (ch.config as {
+              provider?: string;
+              token?: string;
+              instanceId?: string;
+            })
           : undefined;
       return (
         provider === 'uazapi' ||
@@ -93,16 +101,13 @@ export class ChannelResolverService {
             ? (ch.config as { instanceId?: string })
             : undefined;
         return (
-          cfg?.instanceId &&
-          cfg.instanceId.toLowerCase() === instanceCandidate
+          cfg?.instanceId && cfg.instanceId.toLowerCase() === instanceCandidate
         );
       });
       if (byInstance) {
         return { channel: byInstance, error: null };
       }
-      this.logger.warn(
-        `No Uazapi channel matched instanceId=${instanceId}`,
-      );
+      this.logger.warn(`No Uazapi channel matched instanceId=${instanceId}`);
     } else if (instanceId?.trim() && looksLikePhoneNumber(instanceId)) {
       this.logger.warn(
         `Ignoring phone-like Uazapi instanceId=${instanceId}; trying serverUrl/token`,
@@ -110,9 +115,7 @@ export class ChannelResolverService {
     }
 
     const headerRaw =
-      headers?.['token'] ??
-      headers?.['apikey'] ??
-      headers?.['authorization'];
+      headers?.['token'] ?? headers?.['apikey'] ?? headers?.['authorization'];
     const headerToken =
       typeof headerRaw === 'string'
         ? headerRaw.replace(/^Bearer\s+/i, '').trim()

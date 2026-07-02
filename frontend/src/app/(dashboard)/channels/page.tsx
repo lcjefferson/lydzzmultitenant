@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,7 +19,10 @@ import {
     XCircle,
     X,
     Copy,
+    QrCode,
+    RefreshCw,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useChannels, useChannel, useCreateChannel, useUpdateChannel, useDeleteChannel } from '@/hooks/api/use-channels';
 
 const channelIcons = {
@@ -29,10 +32,145 @@ const channelIcons = {
     email: Mail,
 };
 
+function toQrImageSrc(qr: string): string {
+    return qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`;
+}
+
+function UazapiQrModal({ channelId, channelName, onClose }: { channelId: string; channelName?: string; onClose: () => void }) {
+    const queryClient = useQueryClient();
+    const [qrcode, setQrcode] = useState<string | null>(null);
+    const [connected, setConnected] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [connecting, setConnecting] = useState(true);
+
+    const startConnection = async () => {
+        setError(null);
+        setConnecting(true);
+        setQrcode(null);
+        try {
+            const result = await api.connectChannel(channelId);
+            if (result.qrcode) setQrcode(result.qrcode);
+        } catch (err: unknown) {
+            type ApiErrorResp = { response?: { data?: { message?: string } } };
+            const e = err as ApiErrorResp;
+            setError(e.response?.data?.message || 'Erro ao iniciar conexão com a Uazapi');
+        } finally {
+            setConnecting(false);
+        }
+    };
+
+    useEffect(() => {
+        startConnection();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [channelId]);
+
+    // Polling do status a cada 3s enquanto não conectar
+    useEffect(() => {
+        if (connected || error) return;
+        const interval = setInterval(async () => {
+            try {
+                const status = await api.getChannelConnectionStatus(channelId);
+                if (status.qrcode) setQrcode(status.qrcode);
+                if (status.connected) {
+                    setConnected(true);
+                    queryClient.invalidateQueries({ queryKey: ['channels'] });
+                    toast.success('WhatsApp conectado com sucesso!');
+                }
+            } catch {
+                // erros transitórios de polling são ignorados
+            }
+        }, 3000);
+        return () => clearInterval(interval);
+    }, [channelId, connected, error, queryClient]);
+
+    return (
+        <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1200]"
+            onClick={onClose}
+        >
+            <Card
+                className="w-full max-w-md m-4 bg-white text-neutral-900 shadow-2xl border border-primary-500/20"
+                onClick={(e) => e.stopPropagation()}
+                style={{ "--foreground": "222 47% 11%" } as React.CSSProperties}
+            >
+                <div className="p-6 space-y-4">
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <h2 className="text-xl font-bold text-neutral-900 flex items-center gap-2">
+                                <QrCode className="h-5 w-5" />
+                                Conectar WhatsApp
+                            </h2>
+                            {channelName && <p className="text-sm text-neutral-600 mt-1">{channelName}</p>}
+                        </div>
+                        <button onClick={onClose} className="text-neutral-500 hover:text-neutral-800">
+                            <X className="h-6 w-6" />
+                        </button>
+                    </div>
+
+                    {connected ? (
+                        <div className="flex flex-col items-center gap-3 py-8">
+                            <CheckCircle className="h-16 w-16 text-success" />
+                            <p className="text-lg font-semibold text-neutral-900">Número conectado!</p>
+                            <p className="text-sm text-neutral-600 text-center">
+                                O canal foi ativado e já pode receber e enviar mensagens.
+                            </p>
+                            <Button onClick={onClose} className="mt-2">Concluir</Button>
+                        </div>
+                    ) : error ? (
+                        <div className="space-y-4 py-4">
+                            <p className="text-sm text-error">{error}</p>
+                            <p className="text-xs text-neutral-500">
+                                Verifique o Instance Token e o Server URL do canal (botão Configurar) e tente novamente.
+                            </p>
+                            <div className="flex gap-2">
+                                <Button onClick={startConnection}>Tentar novamente</Button>
+                                <Button variant="secondary" onClick={onClose}>Fechar</Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-4 py-2">
+                            {qrcode ? (
+                                <>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={toQrImageSrc(qrcode)}
+                                        alt="QR Code para conectar o WhatsApp"
+                                        className="w-64 h-64 border border-neutral-200 rounded-lg"
+                                    />
+                                    <div className="text-sm text-neutral-600 text-center space-y-1">
+                                        <p>1. Abra o WhatsApp no celular</p>
+                                        <p>2. Toque em <strong>Aparelhos conectados</strong> &gt; <strong>Conectar aparelho</strong></p>
+                                        <p>3. Aponte a câmera para este QR Code</p>
+                                    </div>
+                                    <p className="text-xs text-neutral-400">
+                                        Aguardando leitura... o QR Code é atualizado automaticamente.
+                                    </p>
+                                </>
+                            ) : (
+                                <div className="flex flex-col items-center gap-3 py-10">
+                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500" />
+                                    <p className="text-sm text-neutral-600">
+                                        {connecting ? 'Gerando QR Code...' : 'Aguardando QR Code da Uazapi...'}
+                                    </p>
+                                </div>
+                            )}
+                            <Button variant="secondary" size="sm" onClick={startConnection} disabled={connecting}>
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                                Gerar novo QR Code
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </Card>
+        </div>
+    );
+}
+
 export default function ChannelsPage() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
     const [channelToDelete, setChannelToDelete] = useState<string | null>(null);
+    const [qrChannelId, setQrChannelId] = useState<string | null>(null);
     const [formData, setFormData] = useState({
         name: '',
         type: 'whatsapp' as 'whatsapp' | 'instagram' | 'facebook_leads',
@@ -72,17 +210,21 @@ export default function ChannelsPage() {
     const handleCreateChannel = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const isUazapi = formData.type === 'whatsapp' && formData.provider === 'uazapi';
             const payload = {
                 ...formData,
                 accessToken: (formData as any).accessToken,
-                config:
-                    formData.type === 'whatsapp' && formData.provider === 'uazapi'
-                        ? { ...(formData.config || {}), provider: 'uazapi' }
-                        : { ...(formData.config || {}), provider: 'whatsapp-official' },
+                config: isUazapi
+                    ? { ...(formData.config || {}), provider: 'uazapi' }
+                    : { ...(formData.config || {}), provider: 'whatsapp-official' },
             };
-            await createChannel.mutateAsync(payload as any);
+            const created = await createChannel.mutateAsync(payload as any);
             setShowCreateModal(false);
             setFormData({ name: '', type: 'whatsapp', provider: 'whatsapp-official', identifier: '', config: {} });
+            // Para Uazapi, abre imediatamente o fluxo de conexão via QR Code
+            if (isUazapi && created?.id) {
+                setQrChannelId(created.id);
+            }
         } catch (error) {
             console.error('Error creating channel:', error);
         }
@@ -162,7 +304,21 @@ export default function ChannelsPage() {
                                             <Badge variant={channel.status === 'active' ? 'success' : 'default'}>
                                                 {channel.status === 'active' ? 'Ativo' : 'Inativo'}
                                             </Badge>
+                                            {channel.provider === 'uazapi' && (
+                                                <Badge variant="default">Uazapi</Badge>
+                                            )}
                                         </div>
+
+                                        {channel.provider === 'uazapi' && channel.status !== 'active' && (
+                                            <Button
+                                                variant="secondary"
+                                                className="w-full"
+                                                onClick={() => setQrChannelId(channel.id)}
+                                            >
+                                                <QrCode className="h-4 w-4 mr-2" />
+                                                Conectar (QR Code)
+                                            </Button>
+                                        )}
 
                                         <div className="flex gap-2 pt-4 border-t border-border">
                                             <Button
@@ -288,6 +444,35 @@ export default function ChannelsPage() {
                                             <option value="uazapi">Uazapi</option>
                                         </select>
                                     </div>
+                                )}
+
+                                {formData.type === 'whatsapp' && formData.provider === 'uazapi' && (
+                                    <>
+                                        <Input
+                                            label="Instance Token (Uazapi)"
+                                            type="password"
+                                            value={(formData.config as any).token || ''}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                config: { ...formData.config, token: e.target.value }
+                                            })}
+                                            placeholder="Token da instância (opcional se configurado no servidor)"
+                                            className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
+                                        />
+                                        <Input
+                                            label="Server URL (Uazapi)"
+                                            value={(formData.config as any).serverUrl || ''}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                config: { ...formData.config, serverUrl: e.target.value }
+                                            })}
+                                            placeholder="Ex: https://free.uazapi.com (opcional)"
+                                            className="bg-white border-neutral-300 text-neutral-900 focus:border-primary-500 focus:ring-primary-500/20"
+                                        />
+                                        <p className="text-xs text-neutral-500 -mt-2">
+                                            Após criar o canal, o QR Code será exibido para conectar o número.
+                                        </p>
+                                    </>
                                 )}
 
                                 {formData.type === 'facebook_leads' && (
@@ -674,6 +859,13 @@ export default function ChannelsPage() {
                                                     >
                                                         Salvar Configuração
                                                     </Button>
+                                                    <Button
+                                                        variant="secondary"
+                                                        onClick={() => setQrChannelId(channel.id)}
+                                                    >
+                                                        <QrCode className="h-4 w-4 mr-2" />
+                                                        Conectar (QR Code)
+                                                    </Button>
                                                 </div>
                                             </div>
                                         </div>
@@ -764,6 +956,15 @@ export default function ChannelsPage() {
                     </div>
                 );
             })()}
+
+            {/* Uazapi QR Code Connection Modal */}
+            {qrChannelId && (
+                <UazapiQrModal
+                    channelId={qrChannelId}
+                    channelName={channels?.find((c) => c.id === qrChannelId)?.name}
+                    onClose={() => setQrChannelId(null)}
+                />
+            )}
         </div>
     );
 }

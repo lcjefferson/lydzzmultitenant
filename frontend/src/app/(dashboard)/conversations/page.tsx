@@ -10,7 +10,8 @@ import { ConversationItem } from '@/components/chat/conversation-item';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import { Search, Send, Paperclip, MoreVertical, Wifi, WifiOff, Mail, MailPlus, Phone, Building, X, Mic, Square, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useConversations, useUpdateConversation, useMarkConversationAsRead, useMarkConversationAsUnread } from '@/hooks/api/use-conversations';
-import { useMessages, useCreateMessage } from '@/hooks/api/use-messages';
+import { useChannels } from '@/hooks/api/use-channels';
+import { useMessages, useCreateMessage, appendMessageToCache, updateMessageInCache } from '@/hooks/api/use-messages';
 import { useSocket } from '@/hooks/use-socket';
 import { useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
@@ -135,6 +136,7 @@ export default function ConversationsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [messageInput, setMessageInput] = useState('');
     const [filter, setFilter] = useState<'all' | 'unread' | 'unanswered'>('all');
+    const [channelFilter, setChannelFilter] = useState<string>('all');
     const isMobile = useIsMobile();
     const markAsRead = useMarkConversationAsRead();
     const markAsUnread = useMarkConversationAsUnread();
@@ -226,6 +228,8 @@ export default function ConversationsPage() {
     };
 
     const { data: apiConversations, isLoading: conversationsLoading } = useConversations();
+    const { data: allChannels } = useChannels();
+    const channelTabs = (allChannels || []).filter((ch) => ch.type !== 'internal');
     // Use mock if no conversations are found
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const conversations = (apiConversations && apiConversations.length > 0) ? apiConversations : [MOCK_CONVERSATION as any];
@@ -246,9 +250,32 @@ export default function ConversationsPage() {
             ?? preselectedFromContact
             ?? (conversations && conversations.length > 0 ? conversations[0].id : null));
 
-    const { data: apiMessages } = useMessages(effectiveSelectedId || '');
+    const {
+        data: apiMessages,
+        fetchNextPage: fetchOlderMessages,
+        hasNextPage: hasOlderMessages,
+        isFetchingNextPage: isFetchingOlderMessages,
+    } = useMessages(effectiveSelectedId || '');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const messages = effectiveSelectedId === 'mock-1' ? (MOCK_CONVERSATION.messages as any[]) : apiMessages;
+
+    // Scroll infinito: ao chegar perto do topo, carrega mensagens mais antigas
+    // preservando a posição de leitura
+    const handleMessagesScroll = async () => {
+        const container = messagesContainerRef.current;
+        if (!container || !hasOlderMessages || isFetchingOlderMessages) return;
+        if (container.scrollTop > 100) return;
+
+        const prevScrollHeight = container.scrollHeight;
+        const prevScrollTop = container.scrollTop;
+        await fetchOlderMessages();
+        requestAnimationFrame(() => {
+            const el = messagesContainerRef.current;
+            if (el) {
+                el.scrollTop = el.scrollHeight - prevScrollHeight + prevScrollTop;
+            }
+        });
+    };
     const createMessage = useCreateMessage();
     const updateConversation = useUpdateConversation();
 
@@ -356,33 +383,26 @@ export default function ConversationsPage() {
             const convId = message.conversationId ?? message.conversation?.id;
             const isForCurrent = effectiveSelectedId && convId === effectiveSelectedId;
 
-            // Atualização otimista: exibe a mensagem na hora na conversa atual
-            if (isForCurrent && convId) {
-                queryClient.setQueryData(
-                    ['messages', convId],
-                    (old: typeof messages | undefined) => {
-                        const list = Array.isArray(old) ? old : [];
-                        const hasId = message.id && list.some((m: { id: string }) => m.id === message.id);
-                        if (hasId) return list;
-                        const normalized = {
-                            id: message.id,
-                            conversationId: convId,
-                            content: message.content ?? '',
-                            senderType: message.senderType ?? 'contact',
-                            type: message.type ?? 'text',
-                            attachments: message.attachments,
-                            createdAt: message.createdAt ?? new Date(),
-                            updatedAt: message.updatedAt ?? new Date(),
-                        };
-                        return [...list, normalized];
-                    }
-                );
+            // Aplica a mensagem no cache da conversa correspondente (aberta ou não),
+            // para que ao trocar de conversa nada fique faltando sem refetch
+            if (convId) {
+                appendMessageToCache(queryClient, convId, {
+                    id: message.id,
+                    conversationId: convId,
+                    content: message.content ?? '',
+                    senderType: message.senderType ?? 'contact',
+                    type: message.type ?? 'text',
+                    attachments: message.attachments,
+                    createdAt: message.createdAt ?? new Date(),
+                    updatedAt: message.updatedAt ?? new Date(),
+                });
             }
 
-            queryClient.invalidateQueries({ queryKey: ['messages', effectiveSelectedId] });
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            // A mensagem completa já veio no payload do socket e foi aplicada no cache
+            // (acima para a conversa aberta; a lista é atualizada em useConversations).
+            // Evitamos refetch de /messages e /conversations a cada mensagem da organização.
 
-            if (isForCurrent) {
+            if (isForCurrent && message.senderType === 'contact') {
                 markAsRead.mutate(effectiveSelectedId);
             }
         };
@@ -400,24 +420,8 @@ export default function ConversationsPage() {
 
             const convId = message.conversationId ?? message.conversation?.id;
             if (!convId || !message.id) return;
-            queryClient.setQueryData(
-                ['messages', convId],
-                (old: typeof messages | undefined) => {
-                    const list = Array.isArray(old) ? old : [];
-                    const idx = list.findIndex((m: { id: string }) => m.id === message.id);
-                    if (idx === -1) return list;
-                    const normalized = {
-                        ...list[idx],
-                        ...message,
-                        createdAt: message.createdAt ?? list[idx].createdAt,
-                        updatedAt: message.updatedAt ?? new Date(),
-                    };
-                    const next = [...list];
-                    next[idx] = normalized;
-                    return next;
-                }
-            );
-            queryClient.invalidateQueries({ queryKey: ['messages', convId] });
+            updateMessageInCache(queryClient, convId, message);
+            // Backfill de anexo pode mudar a tag "Anexo" na lista; refetch pontual
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
         };
 
@@ -432,10 +436,13 @@ export default function ConversationsPage() {
         };
     }, [effectiveSelectedId, onNewMessage, offNewMessage, onMessageCreated, offMessageCreated, onMessageUpdated, offMessageUpdated, queryClient, markAsRead, user?.organizationId]);
 
-    // Ao abrir uma conversa ou quando as mensagens mudam, rolar até a última mensagem
+    // Ao abrir uma conversa ou quando chega mensagem NOVA, rolar até a última.
+    // Usa o id da última mensagem (não o total) para não pular para o fim
+    // quando mensagens antigas são carregadas no scroll infinito.
     const messagesLength = messages?.length ?? 0;
+    const lastMessageId = messagesLength > 0 ? messages![messagesLength - 1].id : null;
     useEffect(() => {
-        if (!effectiveSelectedId || messagesLength === 0) return;
+        if (!effectiveSelectedId || !lastMessageId) return;
         const scrollToBottom = () => {
             const container = messagesContainerRef.current;
             if (container) {
@@ -454,7 +461,7 @@ export default function ConversationsPage() {
             clearTimeout(t2);
             clearTimeout(t3);
         };
-    }, [effectiveSelectedId, messagesLength]);
+    }, [effectiveSelectedId, lastMessageId]);
 
     useEffect(() => {
         (async () => {
@@ -572,6 +579,7 @@ export default function ConversationsPage() {
     };
 
     const filteredConversations = conversations?.filter((conv) => {
+        if (channelFilter !== 'all' && conv.channelId !== channelFilter) return false;
         let matchesFilter = true;
         if (filter === 'unread') {
             matchesFilter = (conv.unreadCount || 0) > 0;
@@ -714,6 +722,49 @@ export default function ConversationsPage() {
                         </div>
                     </div>
 
+                    {/* Channel Tabs */}
+                    {channelTabs.length > 0 && (
+                        <div className="px-2 pt-2 sm:px-3 border-b border-white/10 flex gap-1 overflow-x-auto scrollbar-none flex-nowrap">
+                            <button
+                                onClick={() => setChannelFilter('all')}
+                                className={`shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                                    channelFilter === 'all'
+                                        ? 'border-[#00a884] text-[#00a884]'
+                                        : 'border-transparent text-neutral-300 hover:text-white'
+                                }`}
+                            >
+                                Todos os canais
+                            </button>
+                            {channelTabs.map((ch) => {
+                                const count = (conversations || []).filter((c) => c.channelId === ch.id && (c.unreadCount || 0) > 0).length;
+                                return (
+                                    <button
+                                        key={ch.id}
+                                        onClick={() => setChannelFilter(ch.id)}
+                                        title={ch.status === 'active' ? 'Canal conectado' : 'Canal inativo'}
+                                        className={`shrink-0 px-3 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+                                            channelFilter === ch.id
+                                                ? 'border-[#00a884] text-[#00a884]'
+                                                : 'border-transparent text-neutral-300 hover:text-white'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                                                ch.status === 'active' ? 'bg-[#00a884]' : 'bg-neutral-500'
+                                            }`}
+                                        />
+                                        <span className="truncate max-w-[140px]">{ch.name}</span>
+                                        {count > 0 && (
+                                            <span className="bg-blue-500 text-white text-[10px] rounded-full h-4 min-w-[1rem] px-1 inline-flex items-center justify-center">
+                                                {count}
+                                            </span>
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+
                     {/* Filters */}
                     <div className="p-2 sm:p-4 border-b border-white/10 flex gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none flex-nowrap sm:flex-wrap">
                         <Button
@@ -758,6 +809,7 @@ export default function ConversationsPage() {
                                         contactName={displayName}
                                         contactIdentifier={identifier}
                                         contactTag={conv.contactTag}
+                                        hasAttachment={conv.hasContactAttachment}
                                         lastMessage={last}
                                         timestamp={new Date(conv.lastMessageAt).toISOString()}
                                         status={conv.status}
@@ -877,8 +929,15 @@ export default function ConversationsPage() {
                         {/* Messages */}
                         <div
                             ref={messagesContainerRef}
+                            onScroll={handleMessagesScroll}
                             className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-thin p-3 sm:p-6 space-y-3 sm:space-y-4 bg-[#efeae2]"
                         >
+                            {isFetchingOlderMessages && (
+                                <div className="flex items-center justify-center gap-2 py-2 text-sm text-neutral-500">
+                                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                                    Carregando mensagens antigas...
+                                </div>
+                            )}
                             {messages && messages.length > 0 ? (
                                 messages.map((message) => (
                                     <MessageBubble

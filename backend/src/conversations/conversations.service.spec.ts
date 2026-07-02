@@ -16,10 +16,13 @@ describe('ConversationsService', () => {
             conversation: {
               create: jest.fn(),
               findAll: jest.fn(),
-              findMany: jest.fn(),
+              findMany: jest.fn().mockResolvedValue([]),
               findUnique: jest.fn(),
               update: jest.fn(),
               delete: jest.fn(),
+            },
+            message: {
+              groupBy: jest.fn().mockResolvedValue([]),
             },
             organization: {
               findFirst: jest.fn(),
@@ -71,10 +74,7 @@ describe('ConversationsService', () => {
       expect(prismaService.conversation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            OR: [
-              { assignedToId: userId },
-              { lead: { assignedToId: userId } },
-            ],
+            OR: [{ assignedToId: userId }, { lead: { assignedToId: userId } }],
           }),
         }),
       );
@@ -87,15 +87,18 @@ describe('ConversationsService', () => {
 
       await service.findAll(userId, role, organizationId);
 
-      const calls = (prismaService.conversation.findMany as jest.Mock).mock.calls;
+      const calls = (prismaService.conversation.findMany as jest.Mock).mock
+        .calls;
       const args = calls[calls.length - 1][0]; // last call args
-      
+
       // Check that OR filter with userId is NOT present
       if (args.where.OR) {
-          const hasUserFilter = args.where.OR.some((cond: any) => cond.assignedToId === userId);
-          expect(hasUserFilter).toBeFalsy();
+        const hasUserFilter = args.where.OR.some(
+          (cond: any) => cond.assignedToId === userId,
+        );
+        expect(hasUserFilter).toBeFalsy();
       } else {
-          expect(true).toBeTruthy();
+        expect(true).toBeTruthy();
       }
     });
   });

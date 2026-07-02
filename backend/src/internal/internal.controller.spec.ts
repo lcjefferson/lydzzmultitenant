@@ -53,44 +53,56 @@ describe('InternalController', () => {
 
     it('should call service when master key is correct', async () => {
       mockConfigService.get.mockReturnValue('correct-key');
-      mockInternalService.createOrganizationWithAdmin.mockResolvedValue({ success: true });
+      mockInternalService.createOrganizationWithAdmin.mockResolvedValue({
+        success: true,
+      });
 
       const result = await controller.createOrganizationWithAdmin(dto);
 
       expect(configService.get).toHaveBeenCalledWith('MASTER_SECRET_KEY');
-      expect(internalService.createOrganizationWithAdmin).toHaveBeenCalledWith(dto);
+      expect(internalService.createOrganizationWithAdmin).toHaveBeenCalledWith(
+        dto,
+      );
       expect(result).toEqual({ success: true });
     });
 
     it('should handle master key with whitespace trimming', async () => {
       mockConfigService.get.mockReturnValue('correct-key');
       const dtoWithSpaces = { ...dto, masterKey: '  correct-key  ' };
-      mockInternalService.createOrganizationWithAdmin.mockResolvedValue({ success: true });
+      mockInternalService.createOrganizationWithAdmin.mockResolvedValue({
+        success: true,
+      });
 
       await controller.createOrganizationWithAdmin(dtoWithSpaces);
 
-      expect(internalService.createOrganizationWithAdmin).toHaveBeenCalledWith(dtoWithSpaces);
+      expect(internalService.createOrganizationWithAdmin).toHaveBeenCalledWith(
+        dtoWithSpaces,
+      );
     });
 
     it('should throw UnauthorizedException when master key is incorrect', async () => {
       mockConfigService.get.mockReturnValue('correct-key');
       const invalidDto = { ...dto, masterKey: 'wrong-key' };
 
-      await expect(controller.createOrganizationWithAdmin(invalidDto))
-        .rejects
-        .toThrow(UnauthorizedException);
-        
-      expect(internalService.createOrganizationWithAdmin).not.toHaveBeenCalled();
+      await expect(
+        controller.createOrganizationWithAdmin(invalidDto),
+      ).rejects.toThrow(UnauthorizedException);
+
+      expect(
+        internalService.createOrganizationWithAdmin,
+      ).not.toHaveBeenCalled();
     });
 
     it('should throw UnauthorizedException when master key is not configured in env', async () => {
       mockConfigService.get.mockReturnValue(undefined);
 
-      await expect(controller.createOrganizationWithAdmin(dto))
-        .rejects
-        .toThrow(UnauthorizedException);
-        
-      expect(internalService.createOrganizationWithAdmin).not.toHaveBeenCalled();
+      await expect(controller.createOrganizationWithAdmin(dto)).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(
+        internalService.createOrganizationWithAdmin,
+      ).not.toHaveBeenCalled();
     });
   });
 });

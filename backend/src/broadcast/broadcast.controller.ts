@@ -19,7 +19,10 @@ export class BroadcastController {
     @Query('channelId') channelId: string,
     @GetUser('organizationId') organizationId: string,
   ) {
-    return this.broadcastService.getTemplatesForChannel(channelId, organizationId);
+    return this.broadcastService.getTemplatesForChannel(
+      channelId,
+      organizationId,
+    );
   }
 
   @Get('lead-statuses')
@@ -55,7 +58,10 @@ export class BroadcastController {
   }
 
   @Post('send')
-  send(@Body() dto: SendBroadcastDto, @GetUser('organizationId') organizationId: string) {
+  send(
+    @Body() dto: SendBroadcastDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.broadcastService.send(dto, organizationId);
   }
 }

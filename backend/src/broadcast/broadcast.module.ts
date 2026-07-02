@@ -7,7 +7,12 @@ import { ConversationsModule } from '../conversations/conversations.module';
 import { MessagesModule } from '../messages/messages.module';
 
 @Module({
-  imports: [PrismaModule, IntegrationsModule, ConversationsModule, MessagesModule],
+  imports: [
+    PrismaModule,
+    IntegrationsModule,
+    ConversationsModule,
+    MessagesModule,
+  ],
   controllers: [BroadcastController],
   providers: [BroadcastService],
   exports: [BroadcastService],

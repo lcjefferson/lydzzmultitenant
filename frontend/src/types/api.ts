@@ -26,6 +26,7 @@ export interface Organization {
     openaiModel?: string;
     openaiMaxTokens?: number;
     openaiTemperature?: number;
+    pipelineStageLabels?: Record<string, string> | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -63,6 +64,7 @@ export interface Conversation {
   contactName: string;
   contactIdentifier: string;
   contactTag?: string | null; // e.g. "Oficial", "Não oficial"
+  hasContactAttachment?: boolean; // contato enviou anexo em algum momento
   status: 'active' | 'waiting' | 'closed';
   unreadCount?: number;
   channelId: string;
@@ -76,6 +78,7 @@ export interface Conversation {
   agent?: Agent;
   assignedTo?: User;
   lead?: Lead;
+  channel?: { id: string; name: string; type: string; provider?: string };
 }
 
 export interface Message {
@@ -109,6 +112,25 @@ export interface Lead {
     assignedTo?: User;
     createdAt: Date;
     updatedAt: Date;
+}
+
+export interface Meeting {
+    id: string;
+    title: string;
+    notes?: string | null;
+    scheduledAt: string;
+    durationMinutes: number;
+    status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+    source: 'user' | 'ai';
+    contactName?: string | null;
+    organizationId: string;
+    leadId?: string | null;
+    lead?: { id: string; name: string; phone?: string; email?: string } | null;
+    conversationId?: string | null;
+    createdById?: string | null;
+    createdBy?: { id: string; name: string } | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface Webhook {

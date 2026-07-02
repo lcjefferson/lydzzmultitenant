@@ -31,8 +31,15 @@ export class MessagesController {
   findAll(
     @Query('conversationId') conversationId: string,
     @GetUser('organizationId') organizationId: string,
+    @Query('limit') limit?: string,
+    @Query('before') before?: string,
   ) {
-    return this.messagesService.findAll(conversationId, organizationId);
+    return this.messagesService.findAll(
+      conversationId,
+      organizationId,
+      limit ? Number(limit) : undefined,
+      before || undefined,
+    );
   }
 
   @Get(':id')

@@ -50,7 +50,9 @@ export class ConversationsGateway
       });
 
       if (!payload.organizationId) {
-        this.logger.warn(`Socket ${client.id} rejected: missing organizationId`);
+        this.logger.warn(
+          `Socket ${client.id} rejected: missing organizationId`,
+        );
         client.disconnect(true);
         return;
       }
@@ -103,10 +105,7 @@ export class ConversationsGateway
   }
 
   @SubscribeMessage('leaveConversation')
-  handleLeaveConversation(
-    client: Socket,
-    payload: { conversationId: string },
-  ) {
+  handleLeaveConversation(client: Socket, payload: { conversationId: string }) {
     void client.leave(`conversation_${payload.conversationId}`);
     return { event: 'leftConversation', data: payload.conversationId };
   }
@@ -137,9 +136,7 @@ export class ConversationsGateway
     this.server
       .to(`conversation_${conversationId}`)
       .emit('newMessage', payload);
-    this.server
-      .to(`org:${organizationId}`)
-      .emit('messageCreated', payload);
+    this.server.to(`org:${organizationId}`).emit('messageCreated', payload);
   }
 
   emitMessageUpdated(
@@ -151,9 +148,7 @@ export class ConversationsGateway
     this.server
       .to(`conversation_${conversationId}`)
       .emit('messageUpdated', payload);
-    this.server
-      .to(`org:${organizationId}`)
-      .emit('messageUpdated', payload);
+    this.server.to(`org:${organizationId}`).emit('messageUpdated', payload);
   }
 
   emitStatusChange(

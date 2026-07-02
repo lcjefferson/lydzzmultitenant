@@ -23,8 +23,14 @@ export class ConversationsController {
   constructor(private readonly conversationsService: ConversationsService) {}
 
   @Post()
-  create(@Body() createConversationDto: CreateConversationDto, @GetUser('organizationId') organizationId: string) {
-    return this.conversationsService.create(createConversationDto, organizationId);
+  create(
+    @Body() createConversationDto: CreateConversationDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.conversationsService.create(
+      createConversationDto,
+      organizationId,
+    );
   }
 
   @Get()
@@ -39,7 +45,10 @@ export class ConversationsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  findOne(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.conversationsService.findOne(id, organizationId);
   }
 
@@ -49,21 +58,34 @@ export class ConversationsController {
     @Body() updateConversationDto: UpdateConversationDto,
     @GetUser('organizationId') organizationId: string,
   ) {
-    return this.conversationsService.update(id, updateConversationDto, organizationId);
+    return this.conversationsService.update(
+      id,
+      updateConversationDto,
+      organizationId,
+    );
   }
 
   @Patch(':id/read')
-  markAsRead(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  markAsRead(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.conversationsService.markAsRead(id, organizationId);
   }
 
   @Patch(':id/unread')
-  markAsUnread(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  markAsUnread(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.conversationsService.markAsUnread(id, organizationId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  remove(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.conversationsService.remove(id, organizationId);
   }
 }

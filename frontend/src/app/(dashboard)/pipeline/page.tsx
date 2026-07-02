@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { useLeads, useUpdateLead, useDeleteLead, useLeadComments, useAddLeadComment, useDelegateLead } from '@/hooks/api/use-leads';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
-import { Mail, Phone, Building, X } from 'lucide-react';
+import { Mail, Phone, Building, X, Pencil, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/auth-context';
+import { usePipelineStageLabels, useUpdatePipelineStageLabels } from '@/hooks/api/use-pipeline-stages';
 import { api } from '@/lib/api';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -34,6 +35,10 @@ export default function PipelinePage() {
   const [overrides, setOverrides] = useState<Record<string, typeof STAGES[number]>>({});
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [users, setUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const { labels: stageLabels, getLabel } = usePipelineStageLabels();
+  const updateStageLabels = useUpdatePipelineStageLabels();
+  const [editingStage, setEditingStage] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
   const isConsultant = user?.role === 'consultant';
   const isAdmin = user?.role === 'admin';
   const filteredLeads = (leads || []).filter((lead) => {
@@ -95,7 +100,7 @@ export default function PipelinePage() {
       'No Show (Não compareceu) (Follow-up)': 'error',
       'Contrato fechado': 'success',
     };
-    return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
+    return <Badge variant={variants[status] || 'default'}>{getLabel(status)}</Badge>;
   };
 
   const handleDeleteLead = async (id: string) => {
@@ -121,6 +126,18 @@ export default function PipelinePage() {
     } catch {}
   };
 
+  const startEditStage = (stage: string) => {
+    setEditingStage(stage);
+    setEditValue(getLabel(stage));
+  };
+
+  const saveStageLabel = async (stage: string) => {
+    try {
+      await updateStageLabels.mutateAsync({ ...stageLabels, [stage]: editValue.trim() });
+      setEditingStage(null);
+    } catch {}
+  };
+
   return (
     <div>
       <Header title="Pipeline" description="Acompanhe o funil de vendas" />
@@ -136,9 +153,55 @@ export default function PipelinePage() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(stage, e)}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-semibold capitalize text-neutral-900">{stage}</h3>
-                  <Badge variant="default">{stageItems.length}</Badge>
+                <div className="flex items-center justify-between mb-2 gap-1">
+                  {editingStage === stage ? (
+                    <div className="flex items-center gap-1 flex-1 min-w-0">
+                      <input
+                        autoFocus
+                        value={editValue}
+                        maxLength={60}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') saveStageLabel(stage);
+                          if (e.key === 'Escape') setEditingStage(null);
+                        }}
+                        className="w-full min-w-0 text-sm font-semibold border border-primary-500 rounded px-1.5 py-0.5 text-neutral-900 bg-white focus:outline-none"
+                      />
+                      <button
+                        onClick={() => saveStageLabel(stage)}
+                        disabled={updateStageLabels.isPending}
+                        title="Salvar"
+                        className="text-green-600 hover:text-green-700 flex-shrink-0"
+                      >
+                        <Check className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setEditingStage(null)}
+                        title="Cancelar"
+                        className="text-neutral-400 hover:text-neutral-600 flex-shrink-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-1 min-w-0">
+                        <h3 className="text-sm font-semibold capitalize text-neutral-900 truncate" title={getLabel(stage)}>
+                          {getLabel(stage)}
+                        </h3>
+                        {isAdmin && (
+                          <button
+                            onClick={() => startEditStage(stage)}
+                            title="Editar nome da etapa"
+                            className="text-neutral-400 hover:text-primary-600 opacity-60 hover:opacity-100 transition-opacity flex-shrink-0"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <Badge variant="default">{stageItems.length}</Badge>
+                    </>
+                  )}
                 </div>
                 <div
                   className="space-y-2 max-h-[70vh] overflow-y-auto scrollbar-thin"
@@ -500,6 +563,7 @@ function EditLeadButton({ lead, canEditOrigin }: { lead: import('@/types/api').L
   ];
   const [status, setStatus] = useState<typeof STAGES[number]>(lead.status);
   const updateLead = useUpdateLead();
+  const { getLabel } = usePipelineStageLabels();
 
   const handleSave = async () => {
     try {
@@ -549,7 +613,7 @@ function EditLeadButton({ lead, canEditOrigin }: { lead: import('@/types/api').L
           <p className="text-sm text-text-tertiary mb-1">Status</p>
           <select className="w-full bg-white border border-neutral-300 rounded-md px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:border-primary-500 focus:ring-primary-500/20" value={status} onChange={(e) => setStatus(e.target.value as typeof STAGES[number])}>
             {STAGES.map((s) => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{getLabel(s)}</option>
             ))}
           </select>
         </div>

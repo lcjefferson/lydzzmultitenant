@@ -50,15 +50,20 @@ describe('NotificationsService', () => {
       const entityId = 'entity-1';
       const data = { foo: 'bar' };
 
-      const users = [
-        { id: 'user-2' },
-        { id: 'user-3' },
-      ];
+      const users = [{ id: 'user-2' }, { id: 'user-3' }];
 
       (prismaService.user.findMany as jest.Mock).mockResolvedValue(users);
-      (prismaService.notification.createMany as jest.Mock).mockResolvedValue({ count: 2 });
+      (prismaService.notification.createMany as jest.Mock).mockResolvedValue({
+        count: 2,
+      });
 
-      await service.notifyOrganization(organizationId, excludeUserId, type, entityId, data);
+      await service.notifyOrganization(
+        organizationId,
+        excludeUserId,
+        type,
+        entityId,
+        data,
+      );
 
       expect(prismaService.user.findMany).toHaveBeenCalledWith({
         where: {
@@ -90,7 +95,13 @@ describe('NotificationsService', () => {
 
       (prismaService.user.findMany as jest.Mock).mockResolvedValue([]);
 
-      await service.notifyOrganization(organizationId, excludeUserId, 'type', 'id', {});
+      await service.notifyOrganization(
+        organizationId,
+        excludeUserId,
+        'type',
+        'id',
+        {},
+      );
 
       expect(prismaService.notification.createMany).not.toHaveBeenCalled();
       expect(gateway.emitNotificationCreated).not.toHaveBeenCalled();
@@ -114,7 +125,9 @@ describe('NotificationsService', () => {
         readAt: null,
       };
 
-      (prismaService.notification.create as jest.Mock).mockResolvedValue(createdNotification);
+      (prismaService.notification.create as jest.Mock).mockResolvedValue(
+        createdNotification,
+      );
 
       const result = await service.create(data);
 
@@ -128,7 +141,9 @@ describe('NotificationsService', () => {
         },
       });
 
-      expect(gateway.emitNotificationCreated).toHaveBeenCalledWith(createdNotification);
+      expect(gateway.emitNotificationCreated).toHaveBeenCalledWith(
+        createdNotification,
+      );
       expect(result).toEqual(createdNotification);
     });
   });

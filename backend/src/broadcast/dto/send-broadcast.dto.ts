@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsArray, IsNotEmpty, IsIn } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsArray,
+  IsNotEmpty,
+  IsIn,
+} from 'class-validator';
 
 export class SendBroadcastDto {
   @IsString()

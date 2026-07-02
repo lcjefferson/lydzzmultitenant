@@ -15,7 +15,10 @@ export class WebhooksService {
     private readonly httpService: HttpService,
   ) {}
 
-  async create(dto: CreateWebhookDto, organizationId: string): Promise<Webhook> {
+  async create(
+    dto: CreateWebhookDto,
+    organizationId: string,
+  ): Promise<Webhook> {
     const { events, ...rest } = dto;
     return this.prisma.webhook.create({
       data: {
@@ -42,12 +45,16 @@ export class WebhooksService {
     return webhook;
   }
 
-  async update(id: string, dto: UpdateWebhookDto, organizationId?: string): Promise<Webhook> {
+  async update(
+    id: string,
+    dto: UpdateWebhookDto,
+    organizationId?: string,
+  ): Promise<Webhook> {
     const webhook = await this.findOne(id, organizationId);
     if (!webhook) {
       throw new NotFoundException('Webhook not found');
     }
-    
+
     const { events, ...rest } = dto;
     const data: any = { ...rest };
     if (events) {
@@ -68,7 +75,11 @@ export class WebhooksService {
     return this.prisma.webhook.delete({ where: { id } });
   }
 
-  async triggerWebhook(event: string, payload: Prisma.InputJsonValue, organizationId: string) {
+  async triggerWebhook(
+    event: string,
+    payload: Prisma.InputJsonValue,
+    organizationId: string,
+  ) {
     const webhooks = await this.prisma.webhook.findMany({
       where: {
         isActive: true,
@@ -83,7 +94,8 @@ export class WebhooksService {
   }
 
   async getPublicBaseUrl(): Promise<string | null> {
-    const envUrl = process.env.APP_URL || process.env.PUBLIC_URL || process.env.NGROK_URL;
+    const envUrl =
+      process.env.APP_URL || process.env.PUBLIC_URL || process.env.NGROK_URL;
     if (envUrl) {
       return envUrl.replace(/\/$/, '');
     }

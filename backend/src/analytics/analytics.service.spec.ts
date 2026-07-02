@@ -57,10 +57,7 @@ describe('AnalyticsService', () => {
           where: expect.objectContaining({
             organizationId,
             channel: { type: { not: 'internal' } },
-            OR: [
-              { assignedToId: userId },
-              { lead: { assignedToId: userId } },
-            ],
+            OR: [{ assignedToId: userId }, { lead: { assignedToId: userId } }],
           }),
         }),
       );
@@ -92,13 +89,15 @@ describe('AnalyticsService', () => {
           }),
         }),
       );
-      
+
       // Should not have user filter
       const calls = (prismaService.conversation.count as jest.Mock).mock.calls;
       const args = calls[calls.length - 1][0];
       if (args.where.OR) {
-         const hasUserFilter = args.where.OR.some((cond: any) => cond.assignedToId === userId);
-         expect(hasUserFilter).toBeFalsy();
+        const hasUserFilter = args.where.OR.some(
+          (cond: any) => cond.assignedToId === userId,
+        );
+        expect(hasUserFilter).toBeFalsy();
       }
     });
   });

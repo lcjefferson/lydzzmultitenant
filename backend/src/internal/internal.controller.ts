@@ -28,9 +28,11 @@ export class InternalController {
   @Post('onboarding')
   async createOrganizationWithAdmin(@Body() body: CreateOrganizationDto) {
     const masterKeyConfig = this.configService.get<string>('MASTER_SECRET_KEY');
-    
+
     if (!masterKeyConfig) {
-      this.logger.error('MASTER_SECRET_KEY is not configured in environment variables');
+      this.logger.error(
+        'MASTER_SECRET_KEY is not configured in environment variables',
+      );
       throw new UnauthorizedException('System configuration error');
     }
 
@@ -78,7 +80,12 @@ export class InternalController {
     @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id as string;
-    return this.internalService.sendRoomMessage(id, userId, body.content, organizationId);
+    return this.internalService.sendRoomMessage(
+      id,
+      userId,
+      body.content,
+      organizationId,
+    );
   }
 
   @Get('users')
@@ -105,7 +112,11 @@ export class InternalController {
     @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id as string;
-    return this.internalService.openDM(userId, body.targetUserId, organizationId);
+    return this.internalService.openDM(
+      userId,
+      body.targetUserId,
+      organizationId,
+    );
   }
 
   @Get('dm/:id/messages')
@@ -126,6 +137,11 @@ export class InternalController {
     @GetUser('organizationId') organizationId: string,
   ) {
     const userId = req.user?.id as string;
-    return this.internalService.sendDMMessage(id, userId, body.content, organizationId);
+    return this.internalService.sendDMMessage(
+      id,
+      userId,
+      body.content,
+      organizationId,
+    );
   }
 }

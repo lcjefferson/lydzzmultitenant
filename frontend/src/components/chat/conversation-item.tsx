@@ -2,13 +2,14 @@ import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
-import { MessageCircle, Instagram, Facebook, Mail } from 'lucide-react';
+import { MessageCircle, Instagram, Facebook, Mail, Paperclip } from 'lucide-react';
 
 interface ConversationItemProps {
     id: string;
     contactName: string;
     contactIdentifier?: string;
     contactTag?: string | null; // e.g. "Oficial", "Não oficial"
+    hasAttachment?: boolean; // contato enviou anexo na conversa
     lastMessage: string;
     timestamp: string;
     status: 'active' | 'waiting' | 'closed';
@@ -30,6 +31,7 @@ export function ConversationItem({
     contactName,
     contactIdentifier,
     contactTag,
+    hasAttachment,
     lastMessage,
     timestamp,
     status,
@@ -91,6 +93,16 @@ export function ConversationItem({
                         {contactTag && (
                             <Badge variant="default" className="flex-shrink-0 text-[10px] px-1.5 py-0 bg-neutral-600 text-gray-200 border-0 font-normal hidden sm:inline-flex">
                                 {contactTag}
+                            </Badge>
+                        )}
+                        {hasAttachment && (
+                            <Badge
+                                variant="default"
+                                title="Este contato enviou anexo(s)"
+                                className="flex-shrink-0 text-[10px] px-1.5 py-0 bg-amber-500/90 text-white border-0 font-medium inline-flex items-center gap-0.5"
+                            >
+                                <Paperclip className="h-2.5 w-2.5" />
+                                Anexo
                             </Badge>
                         )}
                     </div>

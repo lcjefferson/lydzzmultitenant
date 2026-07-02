@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -29,6 +30,9 @@ model Organization {
   openaiMaxTokens   Int?     @default(500)
   openaiTemperature Float?   @default(0.7)
 
+  // Rótulos personalizados das etapas do pipeline (chave = etapa canônica, valor = rótulo exibido)
+  pipelineStageLabels Json?
+
   users         User[]
   agents        Agent[]
   channels      Channel[]
@@ -37,6 +41,7 @@ model Organization {
   webhooks      Webhook[]
   notifications Notification[]
   broadcastCampaigns BroadcastCampaign[]
+  meetings      Meeting[]
 
   @@map("organizations")
 }
@@ -86,6 +91,7 @@ model User {
   assignedLeads         Lead[]
   leadStatusChanges     LeadStatusHistory[]
   notifications         Notification[]
+  meetingsCreated       Meeting[]
 
   @@index([organizationId])
   @@index([email])
@@ -230,6 +236,7 @@ model Message {
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([conversationId])
+  @@index([conversationId, createdAt])
   @@index([senderType])
   @@index([createdAt])
   @@map("messages")
@@ -265,6 +272,7 @@ model Lead {
   conversation Conversation?
 
   statusHistory LeadStatusHistory[]
+  meetings      Meeting[]
 
   @@index([organizationId])
   @@index([temperature])
@@ -272,6 +280,42 @@ model Lead {
   @@index([assignedToId])
   @@index([createdAt])
   @@map("leads")
+}
+
+// ============================================
+// MEETINGS (Calendário de reuniões)
+// ============================================
+
+model Meeting {
+  id              String   @id @default(uuid())
+  title           String
+  notes           String?  @db.Text
+  scheduledAt     DateTime
+  durationMinutes Int      @default(30)
+  status          String   @default("scheduled") // scheduled, completed, cancelled, no_show
+  source          String   @default("user") // user, ai
+  contactName     String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  leadId String?
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  // Conversa de origem (quando detectada pela IA)
+  conversationId String?
+
+  createdById String?
+  createdBy   User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([scheduledAt])
+  @@index([leadId])
+  @@index([conversationId])
+  @@map("meetings")
 }
 
 // ============================================

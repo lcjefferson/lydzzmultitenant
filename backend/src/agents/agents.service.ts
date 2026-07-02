@@ -35,7 +35,11 @@ export class AgentsService {
     return agent;
   }
 
-  async update(id: string, dto: UpdateAgentDto, organizationId: string): Promise<Agent> {
+  async update(
+    id: string,
+    dto: UpdateAgentDto,
+    organizationId: string,
+  ): Promise<Agent> {
     const agent = await this.findOne(id, organizationId);
     if (!agent) {
       throw new NotFoundException('Agent not found or access denied');
@@ -52,7 +56,7 @@ export class AgentsService {
     if (!agent) {
       throw new NotFoundException('Agent not found or access denied');
     }
-    
+
     return this.prisma.agent.delete({ where: { id } });
   }
 }

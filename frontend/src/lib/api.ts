@@ -10,6 +10,7 @@ import type {
     Conversation,
     Message,
     Lead,
+    Meeting,
     Webhook,
     DashboardMetrics,
     ConversationStats,
@@ -281,6 +282,16 @@ class ApiService {
         await this.api.delete(`/channels/${id}`);
     }
 
+    async connectChannel(id: string): Promise<{ qrcode: string | null; paircode: string | null; status: string }> {
+        const response = await this.api.post(`/channels/${id}/connect`);
+        return response.data;
+    }
+
+    async getChannelConnectionStatus(id: string): Promise<{ status: string; connected: boolean; qrcode: string | null; paircode: string | null }> {
+        const response = await this.api.get(`/channels/${id}/connection-status`);
+        return response.data;
+    }
+
     async getWhatsAppWebhookUrl(): Promise<{ webhookUrl: string | null; uazapiWebhookUrl: string | null }> {
         const response = await this.api.get<{ webhookUrl: string | null; uazapiWebhookUrl: string | null }>(
             '/webhooks/url'
@@ -399,8 +410,14 @@ class ApiService {
     }
 
     // Messages
-    async getMessages(conversationId: string): Promise<Message[]> {
-        const response = await this.api.get<Message[]>(`/messages?conversationId=${conversationId}`);
+    async getMessages(
+        conversationId: string,
+        opts?: { limit?: number; before?: string },
+    ): Promise<Message[]> {
+        const params = new URLSearchParams({ conversationId });
+        if (opts?.limit) params.set('limit', String(opts.limit));
+        if (opts?.before) params.set('before', opts.before);
+        const response = await this.api.get<Message[]>(`/messages?${params.toString()}`);
         return response.data;
     }
 
@@ -478,6 +495,48 @@ class ApiService {
 
     async deleteLead(id: string): Promise<void> {
         await this.api.delete(`/leads/${id}`);
+    }
+
+    // Meetings (Calendário)
+    async getMeetings(params?: { start?: string; end?: string }): Promise<Meeting[]> {
+        const query = new URLSearchParams();
+        if (params?.start) query.set('start', params.start);
+        if (params?.end) query.set('end', params.end);
+        const qs = query.toString();
+        const response = await this.api.get<Meeting[]>(`/meetings${qs ? `?${qs}` : ''}`);
+        return response.data;
+    }
+
+    async createMeeting(data: {
+        title: string;
+        scheduledAt: string;
+        durationMinutes?: number;
+        notes?: string;
+        leadId?: string;
+        contactName?: string;
+    }): Promise<Meeting> {
+        const response = await this.api.post<Meeting>('/meetings', data);
+        return response.data;
+    }
+
+    async updateMeeting(
+        id: string,
+        data: Partial<{
+            title: string;
+            scheduledAt: string;
+            durationMinutes: number;
+            notes: string;
+            status: string;
+            leadId: string;
+            contactName: string;
+        }>,
+    ): Promise<Meeting> {
+        const response = await this.api.patch<Meeting>(`/meetings/${id}`, data);
+        return response.data;
+    }
+
+    async deleteMeeting(id: string): Promise<void> {
+        await this.api.delete(`/meetings/${id}`);
     }
 
     async addLeadTag(id: string, tag: string) {

@@ -6,7 +6,10 @@ import { WhatsAppService } from '../integrations/whatsapp.service';
 import type { Response } from 'express';
 import axios, { AxiosResponse } from 'axios';
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { getConfigPhoneNumberId, getOfficialWhatsAppCredentials } from '../common/channel-credentials.util';
+import {
+  getConfigPhoneNumberId,
+  getOfficialWhatsAppCredentials,
+} from '../common/channel-credentials.util';
 
 @Controller('media')
 @UseGuards(JwtAuthGuard, TenantGuard)
@@ -31,7 +34,9 @@ export class MediaController {
     });
 
     let channel = phoneNumberId
-      ? channels.find((ch) => getConfigPhoneNumberId(ch) === phoneNumberId.trim())
+      ? channels.find(
+          (ch) => getConfigPhoneNumberId(ch) === phoneNumberId.trim(),
+        )
       : undefined;
 
     if (!channel && phoneNumberId) {
@@ -56,7 +61,10 @@ export class MediaController {
     }
 
     try {
-      const info = await this.whatsappService.getMediaInfo(mediaId, accessToken);
+      const info = await this.whatsappService.getMediaInfo(
+        mediaId,
+        accessToken,
+      );
       const url = info?.url;
       if (!url) {
         res.status(404).send('Media not found');
@@ -78,6 +86,8 @@ export class MediaController {
       if (cl) {
         res.setHeader('Content-Length', cl);
       }
+      // Mídia do WhatsApp é imutável por mediaId; permite cache no navegador
+      res.setHeader('Cache-Control', 'private, max-age=86400');
       const stream = response.data;
       stream.pipe(res);
     } catch (error) {

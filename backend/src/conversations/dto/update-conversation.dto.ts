@@ -2,7 +2,9 @@ import { PartialType, OmitType } from '@nestjs/mapped-types';
 import { CreateConversationDto } from './create-conversation.dto';
 import { IsOptional, IsString } from 'class-validator';
 
-export class UpdateConversationDto extends PartialType(OmitType(CreateConversationDto, ['contactTag'])) {
+export class UpdateConversationDto extends PartialType(
+  OmitType(CreateConversationDto, ['contactTag']),
+) {
   @IsOptional()
   @IsString()
   agentId?: string | null;

@@ -73,7 +73,12 @@ describe('InternalService', () => {
     it('should create organization and admin user successfully', async () => {
       // Setup mocks
       const mockOrg = { id: 'org-1', name: 'Test Corp', slug: 'test-corp' };
-      const mockUser = { id: 'user-1', email: 'admin@test.com', name: 'Admin User', role: 'admin' };
+      const mockUser = {
+        id: 'user-1',
+        email: 'admin@test.com',
+        name: 'Admin User',
+        role: 'admin',
+      };
       const mockChannel = { id: 'channel-1' };
 
       prisma.organization.create.mockResolvedValue(mockOrg);
@@ -93,62 +98,64 @@ describe('InternalService', () => {
         },
       });
 
-      expect(prisma.user.create).toHaveBeenCalledWith(expect.objectContaining({
-        data: expect.objectContaining({
-          email: createDto.userEmail,
-          name: createDto.userName,
-          role: 'admin',
-          organizationId: mockOrg.id,
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            email: createDto.userEmail,
+            name: createDto.userName,
+            role: 'admin',
+            organizationId: mockOrg.id,
+          }),
         }),
-      }));
-      
+      );
+
       // Verify password hashing (we can't verify the hash value easily, but we can verify it's not plain text)
       const userCreateCall = prisma.user.create.mock.calls[0][0];
       expect(userCreateCall.data.password).not.toBe(createDto.userPassword);
 
       expect(prisma.channel.create).toHaveBeenCalled(); // Ensure internal channel is created
-      
+
       expect(result).toEqual({
         organization: mockOrg,
         user: {
-            id: mockUser.id,
-            email: mockUser.email,
-            name: mockUser.name,
-            role: mockUser.role,
-        }
+          id: mockUser.id,
+          email: mockUser.email,
+          name: mockUser.name,
+          role: mockUser.role,
+        },
       });
     });
 
     it('should throw ConflictException if slug already exists', async () => {
-        // Mock Prisma error P2002 for slug
-        const error = {
-            code: 'P2002',
-            meta: { target: ['slug'] },
-            message: 'Unique constraint failed on the fields: (`slug`)'
-        };
-        prisma.organization.create.mockRejectedValue(error);
+      // Mock Prisma error P2002 for slug
+      const error = {
+        code: 'P2002',
+        meta: { target: ['slug'] },
+        message: 'Unique constraint failed on the fields: (`slug`)',
+      };
+      prisma.organization.create.mockRejectedValue(error);
 
-        await expect(service.createOrganizationWithAdmin(createDto))
-            .rejects
-            .toThrow(ConflictException);
+      await expect(
+        service.createOrganizationWithAdmin(createDto),
+      ).rejects.toThrow(ConflictException);
     });
 
     it('should throw ConflictException if email already exists', async () => {
-        // Org creation success
-        const mockOrg = { id: 'org-1', name: 'Test Corp' };
-        prisma.organization.create.mockResolvedValue(mockOrg);
+      // Org creation success
+      const mockOrg = { id: 'org-1', name: 'Test Corp' };
+      prisma.organization.create.mockResolvedValue(mockOrg);
 
-        // Mock Prisma error P2002 for email on user creation
-        const error = {
-            code: 'P2002',
-            meta: { target: ['email'] },
-            message: 'Unique constraint failed on the fields: (`email`)'
-        };
-        prisma.user.create.mockRejectedValue(error);
+      // Mock Prisma error P2002 for email on user creation
+      const error = {
+        code: 'P2002',
+        meta: { target: ['email'] },
+        message: 'Unique constraint failed on the fields: (`email`)',
+      };
+      prisma.user.create.mockRejectedValue(error);
 
-        await expect(service.createOrganizationWithAdmin(createDto))
-            .rejects
-            .toThrow(ConflictException);
+      await expect(
+        service.createOrganizationWithAdmin(createDto),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

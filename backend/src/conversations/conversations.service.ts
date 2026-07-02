@@ -21,37 +21,37 @@ export class ConversationsService {
     // Assuming contactIdentifier is a phone number for whatsapp channels
     let sanitizedIdentifier = dto.contactIdentifier;
     if (channel.type === 'whatsapp') {
-       sanitizedIdentifier = sanitizedIdentifier.replace(/\D/g, '');
+      sanitizedIdentifier = sanitizedIdentifier.replace(/\D/g, '');
     }
 
     const existingLead = await this.prisma.lead.findFirst({
       where: {
         organizationId,
         OR: [
-            { phone: dto.contactIdentifier },
-            { phone: sanitizedIdentifier },
-            { phone: `+${sanitizedIdentifier}` }
-        ]
+          { phone: dto.contactIdentifier },
+          { phone: sanitizedIdentifier },
+          { phone: `+${sanitizedIdentifier}` },
+        ],
       },
-      include: { conversation: true }
+      include: { conversation: true },
     });
 
     // If lead exists and has a conversation, return it
     if (existingLead && existingLead.conversation) {
-        return existingLead.conversation;
+      return existingLead.conversation;
     }
 
     // Check if conversation exists by contactIdentifier and channel
     const existingConversation = await this.prisma.conversation.findFirst({
-        where: {
-            organizationId,
-            channelId: dto.channelId,
-            contactIdentifier: sanitizedIdentifier
-        }
+      where: {
+        organizationId,
+        channelId: dto.channelId,
+        contactIdentifier: sanitizedIdentifier,
+      },
     });
 
     if (existingConversation) {
-        return existingConversation;
+      return existingConversation;
     }
 
     const lead =
@@ -91,11 +91,7 @@ export class ConversationsService {
     });
   }
 
-  async findAll(
-    userId?: string,
-    role?: string,
-    _organizationId?: string,
-  ) {
+  async findAll(userId?: string, role?: string, _organizationId?: string) {
     const where: any = {};
     if (_organizationId) {
       Object.assign(where, { organizationId: _organizationId });
@@ -115,9 +111,27 @@ export class ConversationsService {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
-        lead: true,
+        // Apenas os campos usados na lista (customFields pode ser um JSON grande)
+        lead: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            company: true,
+            position: true,
+            temperature: true,
+            score: true,
+            status: true,
+            source: true,
+            interest: true,
+            assignedToId: true,
+          },
+        },
         channel: {
           select: {
+            id: true,
+            name: true,
             type: true,
             provider: true,
           },
@@ -125,6 +139,22 @@ export class ConversationsService {
       },
       orderBy: { lastMessageAt: 'desc' },
     });
+
+    // Conversas em que o contato enviou pelo menos um anexo (mídia)
+    const withAttachments = await this.prisma.message.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: list.map((c) => c.id) },
+        senderType: 'contact',
+        OR: [
+          { type: { not: 'text' } },
+          { attachments: { not: Prisma.AnyNull } },
+        ],
+      },
+    });
+    const attachmentConversationIds = new Set(
+      withAttachments.map((m) => m.conversationId),
+    );
 
     return list.map((c) => {
       const channel = c.channel as { type?: string; provider?: string } | null;
@@ -135,7 +165,11 @@ export class ConversationsService {
           : channel?.provider === 'uazapi'
             ? 'Uazapi'
             : null);
-      return { ...c, contactTag };
+      return {
+        ...c,
+        contactTag,
+        hasContactAttachment: attachmentConversationIds.has(c.id),
+      };
     });
   }
 
@@ -169,13 +203,29 @@ export class ConversationsService {
     return { ...conversation, contactTag };
   }
 
-  async update(id: string, dto: UpdateConversationDto, organizationId: string) {
-    const conversation = await this.findOne(id, organizationId);
+  /**
+   * Checagem leve de existência/tenant, sem carregar mensagens e relações
+   * (o findOne completo carrega todas as mensagens da conversa).
+   */
+  private async assertAccess(
+    id: string,
+    organizationId: string,
+  ): Promise<void> {
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id, organizationId },
+      select: { id: true },
+    });
     if (!conversation) {
       throw new NotFoundException('Conversation not found or access denied');
     }
+  }
 
-    const { contactTag: _ignored, ...rest } = dto as UpdateConversationDto & { contactTag?: string | null };
+  async update(id: string, dto: UpdateConversationDto, organizationId: string) {
+    await this.assertAccess(id, organizationId);
+
+    const { contactTag: _ignored, ...rest } = dto as UpdateConversationDto & {
+      contactTag?: string | null;
+    };
     return this.prisma.conversation.update({
       where: { id },
       data: rest,
@@ -183,10 +233,7 @@ export class ConversationsService {
   }
 
   async markAsRead(id: string, organizationId: string) {
-    const conversation = await this.findOne(id, organizationId);
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found or access denied');
-    }
+    await this.assertAccess(id, organizationId);
 
     return this.prisma.conversation.update({
       where: { id },
@@ -195,10 +242,7 @@ export class ConversationsService {
   }
 
   async markAsUnread(id: string, organizationId: string) {
-    const conversation = await this.findOne(id, organizationId);
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found or access denied');
-    }
+    await this.assertAccess(id, organizationId);
 
     return this.prisma.conversation.update({
       where: { id },
@@ -207,10 +251,7 @@ export class ConversationsService {
   }
 
   async remove(id: string, organizationId: string) {
-    const conversation = await this.findOne(id, organizationId);
-    if (!conversation) {
-      throw new NotFoundException('Conversation not found or access denied');
-    }
+    await this.assertAccess(id, organizationId);
     return this.prisma.conversation.delete({ where: { id } });
   }
 }

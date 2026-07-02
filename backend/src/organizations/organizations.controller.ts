@@ -39,8 +39,8 @@ export class OrganizationsController {
     @GetUser('organizationId') organizationId: string,
   ) {
     if (organizationId && id !== organizationId) {
-       // Allow if user is super admin? For now, strict check.
-       throw new ForbiddenException('You can only access your own organization');
+      // Allow if user is super admin? For now, strict check.
+      throw new ForbiddenException('You can only access your own organization');
     }
     return this.organizationsService.findOne(id);
   }
@@ -51,9 +51,18 @@ export class OrganizationsController {
     @Param('id') id: string,
     @Body() dto: UpdateOrganizationDto,
     @GetUser('organizationId') organizationId: string,
+    @GetUser('role') role: string,
   ) {
     if (organizationId && id !== organizationId) {
       throw new ForbiddenException('You can only update your own organization');
+    }
+    if (
+      typeof dto.pipelineStageLabels !== 'undefined' &&
+      String(role || '').toLowerCase() !== 'admin'
+    ) {
+      throw new ForbiddenException(
+        'Only admins can edit pipeline stage labels',
+      );
     }
     return this.organizationsService.update(id, dto);
   }

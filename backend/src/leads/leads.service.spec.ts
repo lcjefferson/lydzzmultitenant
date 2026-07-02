@@ -42,7 +42,8 @@ describe('LeadsService', () => {
 
     service = module.get<LeadsService>(LeadsService);
     prismaService = module.get<PrismaService>(PrismaService);
-    notificationsService = module.get<NotificationsService>(NotificationsService);
+    notificationsService =
+      module.get<NotificationsService>(NotificationsService);
   });
 
   it('should be defined', () => {
@@ -66,7 +67,10 @@ describe('LeadsService', () => {
 
       (prismaService.lead.findUnique as jest.Mock).mockResolvedValue(lead);
       (prismaService.lead.update as jest.Mock).mockResolvedValue(lead); // Mock update return
-      (prismaService.user.findUnique as jest.Mock).mockResolvedValue({ id: userId, name: 'Commenter' });
+      (prismaService.user.findUnique as jest.Mock).mockResolvedValue({
+        id: userId,
+        name: 'Commenter',
+      });
 
       await service.addComment(leadId, content, userId);
 
@@ -80,7 +84,7 @@ describe('LeadsService', () => {
           leadName: lead.name,
           commentContent: content,
           commentId: expect.any(String),
-          commentUser: 'Commenter', 
+          commentUser: 'Commenter',
         },
       );
     });

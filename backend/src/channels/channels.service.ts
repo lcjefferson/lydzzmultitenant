@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateChannelDto } from './dto/create-channel.dto';
 import { UpdateChannelDto } from './dto/update-channel.dto';
@@ -37,30 +42,39 @@ export class ChannelsService {
     }
   }
 
-  async create(dto: CreateChannelDto, organizationId: string): Promise<Channel> {
+  async create(
+    dto: CreateChannelDto,
+    organizationId: string,
+  ): Promise<Channel> {
     const provider = dto.provider ?? 'whatsapp-official';
     const baseConfig =
       typeof dto.config === 'object' && dto.config !== null ? dto.config : {};
-    
+
     // Auto-fetch instanceId for Uazapi if not provided but connection details are present
     if (dto.type === 'whatsapp' && provider === 'uazapi') {
-        const configObj = baseConfig as Record<string, any>;
-        const serverUrl = configObj.serverUrl || process.env.UAZAPI_API_URL;
-        const token = configObj.token || process.env.UAZAPI_INSTANCE_TOKEN;
-        
-        if (serverUrl && token && !configObj.instanceId) {
-            try {
-                const check = await this.uazapiService.checkConnection(token, serverUrl);
-                if (check.success && check.instanceId) {
-                    configObj.instanceId = check.instanceId;
-                    configObj.serverUrl = serverUrl; // Ensure persisted
-                    configObj.token = token; // Ensure persisted
-                }
-            } catch (error) {
-                // Log but don't block creation, maybe user will fix later
-                console.error('Failed to auto-fetch instanceId during creation:', error);
-            }
+      const configObj = baseConfig;
+      const serverUrl = configObj.serverUrl || process.env.UAZAPI_API_URL;
+      const token = configObj.token || process.env.UAZAPI_INSTANCE_TOKEN;
+
+      if (serverUrl && token && !configObj.instanceId) {
+        try {
+          const check = await this.uazapiService.checkConnection(
+            token,
+            serverUrl,
+          );
+          if (check.success && check.instanceId) {
+            configObj.instanceId = check.instanceId;
+            configObj.serverUrl = serverUrl; // Ensure persisted
+            configObj.token = token; // Ensure persisted
+          }
+        } catch (error) {
+          // Log but don't block creation, maybe user will fix later
+          console.error(
+            'Failed to auto-fetch instanceId during creation:',
+            error,
+          );
         }
+      }
     }
 
     const mergedConfig =
@@ -117,7 +131,11 @@ export class ChannelsService {
     return channel;
   }
 
-  async update(id: string, dto: UpdateChannelDto, organizationId: string): Promise<Channel> {
+  async update(
+    id: string,
+    dto: UpdateChannelDto,
+    organizationId: string,
+  ): Promise<Channel> {
     const channel = (await this.findOne(id, organizationId)) as any;
     if (!channel) {
       throw new NotFoundException('Channel not found or access denied');
@@ -125,14 +143,25 @@ export class ChannelsService {
 
     // Check if config is being updated for Uazapi
     if (dto.config && channel.provider === 'uazapi') {
-      const newConfig = dto.config as Record<string, any>;
-      const serverUrl = newConfig.serverUrl || (channel.config as any)?.serverUrl || process.env.UAZAPI_API_URL;
-      const token = newConfig.token || (channel.config as any)?.token || process.env.UAZAPI_INSTANCE_TOKEN;
+      const newConfig = dto.config;
+      const serverUrl =
+        newConfig.serverUrl ||
+        channel.config?.serverUrl ||
+        process.env.UAZAPI_API_URL;
+      const token =
+        newConfig.token ||
+        channel.config?.token ||
+        process.env.UAZAPI_INSTANCE_TOKEN;
 
       if (serverUrl && token) {
-        const check = await this.uazapiService.checkConnection(token, serverUrl);
+        const check = await this.uazapiService.checkConnection(
+          token,
+          serverUrl,
+        );
         if (!check.success) {
-          throw new BadRequestException('Falha ao conectar com Uazapi. Verifique Server URL e Token.');
+          throw new BadRequestException(
+            'Falha ao conectar com Uazapi. Verifique Server URL e Token.',
+          );
         }
         if (check.instanceId) {
           newConfig.instanceId = check.instanceId;
@@ -144,7 +173,7 @@ export class ChannelsService {
     }
 
     if (dto.accessToken) {
-        dto.accessToken = dto.accessToken.trim();
+      dto.accessToken = dto.accessToken.trim();
     }
 
     const mergedForValidation = {
@@ -156,9 +185,13 @@ export class ChannelsService {
         : {}),
     };
     const nextProvider =
-      dto.provider ?? (channel as { provider?: string }).provider ?? 'whatsapp-official';
+      dto.provider ??
+      (channel as { provider?: string }).provider ??
+      'whatsapp-official';
     if (channel.type === 'whatsapp' && nextProvider === 'whatsapp-official') {
-      const phoneNumberId = String(mergedForValidation.phoneNumberId ?? '').trim();
+      const phoneNumberId = String(
+        mergedForValidation.phoneNumberId ?? '',
+      ).trim();
       if (!phoneNumberId) {
         throw new BadRequestException(
           'Phone Number ID é obrigatório para WhatsApp Oficial',
@@ -166,7 +199,7 @@ export class ChannelsService {
       }
       await this.ensureUniquePhoneNumberId(phoneNumberId, id);
     }
-    
+
     return this.prisma.channel.update({
       where: { id },
       data: dto,
@@ -180,5 +213,104 @@ export class ChannelsService {
     }
 
     return this.prisma.channel.delete({ where: { id } });
+  }
+
+  private getUazapiConnectionParams(channel: Channel): {
+    token: string;
+    serverUrl?: string;
+  } {
+    if ((channel as any).provider !== 'uazapi') {
+      throw new BadRequestException(
+        'Conexão via QR Code disponível apenas para canais Uazapi',
+      );
+    }
+    const config = (channel.config || {}) as Record<string, any>;
+    const token = String(
+      config.token || process.env.UAZAPI_INSTANCE_TOKEN || '',
+    ).trim();
+    const serverUrl = String(
+      config.serverUrl || process.env.UAZAPI_API_URL || '',
+    ).trim();
+    if (!token) {
+      throw new BadRequestException(
+        'Instance Token da Uazapi não configurado para este canal',
+      );
+    }
+    return { token, serverUrl: serverUrl || undefined };
+  }
+
+  /** Inicia a conexão da instância Uazapi e retorna o QR Code. */
+  async connectUazapi(id: string, organizationId: string) {
+    const channel = await this.findOne(id, organizationId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found or access denied');
+    }
+    const { token, serverUrl } = this.getUazapiConnectionParams(channel);
+
+    const result = await this.uazapiService.connectInstance(token, serverUrl);
+    if (!result.success) {
+      throw new BadRequestException(
+        `Falha ao iniciar conexão com a Uazapi: ${result.error || 'erro desconhecido'}`,
+      );
+    }
+
+    if (result.instanceId) {
+      await this.prisma.channel.update({
+        where: { id },
+        data: {
+          config: {
+            ...((channel.config || {}) as Record<string, any>),
+            token,
+            ...(serverUrl ? { serverUrl } : {}),
+            instanceId: result.instanceId,
+          },
+        },
+      });
+    }
+
+    return {
+      qrcode: result.qrcode ?? null,
+      paircode: result.paircode ?? null,
+      status: result.status ?? 'connecting',
+    };
+  }
+
+  /** Consulta o status da conexão; ao conectar, ativa o canal automaticamente. */
+  async getUazapiConnectionStatus(id: string, organizationId: string) {
+    const channel = await this.findOne(id, organizationId);
+    if (!channel) {
+      throw new NotFoundException('Channel not found or access denied');
+    }
+    const { token, serverUrl } = this.getUazapiConnectionParams(channel);
+
+    const result = await this.uazapiService.getInstanceStatus(token, serverUrl);
+    if (!result.success) {
+      throw new BadRequestException(
+        `Falha ao consultar status na Uazapi: ${result.error || 'erro desconhecido'}`,
+      );
+    }
+
+    if (result.connected) {
+      await this.prisma.channel.update({
+        where: { id },
+        data: {
+          status: 'active',
+          lastSyncAt: new Date(),
+          config: {
+            ...((channel.config || {}) as Record<string, any>),
+            token,
+            ...(serverUrl ? { serverUrl } : {}),
+            ...(result.instanceId ? { instanceId: result.instanceId } : {}),
+          },
+        },
+      });
+    }
+
+    return {
+      status: result.status ?? 'unknown',
+      connected: !!result.connected,
+      qrcode: result.qrcode ?? null,
+      paircode: result.paircode ?? null,
+    };
   }
 }

@@ -252,10 +252,11 @@ export class AnalyticsService {
             l.status,
           ),
         ).length;
-        const active = leads.filter((l) =>
-          !['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
-            l.status,
-          ),
+        const active = leads.filter(
+          (l) =>
+            !['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
+              l.status,
+            ),
         ).length;
         const total = leads.length;
         const conversionRate = total ? Math.round((closed / total) * 100) : 0;
@@ -292,10 +293,11 @@ export class AnalyticsService {
           l.status,
         ),
       ).length;
-      const active = unassignedLeads.filter((l) =>
-        !['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
-          l.status,
-        ),
+      const active = unassignedLeads.filter(
+        (l) =>
+          !['Contrato fechado', 'converted', 'fechado', 'contrato'].includes(
+            l.status,
+          ),
       ).length;
       const total = unassignedLeads.length;
       const conversionRate = total ? Math.round((closed / total) * 100) : 0;

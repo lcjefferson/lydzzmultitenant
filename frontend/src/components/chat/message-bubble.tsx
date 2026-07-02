@@ -2,7 +2,7 @@
  
  import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/utils';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { FileText, FileSpreadsheet, File, FileImage, FileAudio, FileVideo, FileCode } from 'lucide-react';
 
@@ -33,7 +33,34 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
     const urlStr = typeof attachmentUrl === 'string' ? attachmentUrl : null;
     const mediaIdStr = typeof attachmentMediaId === 'string' ? attachmentMediaId : null;
 
+    // Carrega a mídia apenas quando o bubble se aproxima da viewport,
+    // evitando dezenas de downloads paralelos ao abrir conversas longas
+    const bubbleRef = useRef<HTMLDivElement>(null);
+    const isMedia = !!messageType && messageType !== 'text';
+    const [isVisible, setIsVisible] = useState(!isMedia);
+
     useEffect(() => {
+        if (!isMedia || isVisible) return;
+        const el = bubbleRef.current;
+        if (!el || typeof IntersectionObserver === 'undefined') {
+            setIsVisible(true);
+            return;
+        }
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    setIsVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: '400px' },
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [isMedia, isVisible]);
+
+    useEffect(() => {
+        if (!isVisible) return;
         let objectUrl: string | null = null;
         let isMounted = true;
 
@@ -132,7 +159,7 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
                URL.revokeObjectURL(objectUrl);
            }
        };
-    }, [messageType, urlStr, mediaIdStr]);
+    }, [messageType, urlStr, mediaIdStr, isVisible]);
 
     const getFileIcon = (filename: string) => {
         const ext = filename.split('.').pop()?.toLowerCase();
@@ -169,7 +196,7 @@ export function MessageBubble({ type, content, timestamp, senderName, confidence
     const fileName = (attachments as { name?: string })?.name || (attachments as { filename?: string })?.filename || 'Documento';
 
     return (
-        <div className={cn('flex flex-col', type !== 'contact' && 'items-end')}>
+        <div ref={bubbleRef} className={cn('flex flex-col', type !== 'contact' && 'items-end')}>
             {senderName && (
                 <span className="text-xs text-text-tertiary mb-1 px-1">{senderName}</span>
             )}

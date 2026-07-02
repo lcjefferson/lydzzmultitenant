@@ -21,7 +21,10 @@ export class ChannelsController {
   constructor(private readonly channelsService: ChannelsService) {}
 
   @Post()
-  create(@Body() createChannelDto: CreateChannelDto, @GetUser('organizationId') organizationId: string) {
+  create(
+    @Body() createChannelDto: CreateChannelDto,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.channelsService.create(createChannelDto, organizationId);
   }
 
@@ -31,8 +34,27 @@ export class ChannelsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  findOne(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.channelsService.findOne(id, organizationId);
+  }
+
+  @Post(':id/connect')
+  connect(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.channelsService.connectUazapi(id, organizationId);
+  }
+
+  @Get(':id/connection-status')
+  connectionStatus(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
+    return this.channelsService.getUazapiConnectionStatus(id, organizationId);
   }
 
   @Patch(':id')
@@ -45,7 +67,10 @@ export class ChannelsController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @GetUser('organizationId') organizationId: string) {
+  remove(
+    @Param('id') id: string,
+    @GetUser('organizationId') organizationId: string,
+  ) {
     return this.channelsService.remove(id, organizationId);
   }
 }

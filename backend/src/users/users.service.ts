@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -75,15 +79,21 @@ export class UsersService {
   async findOne(id: string, organizationId?: string): Promise<User | null> {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (organizationId && user?.organizationId !== organizationId) {
-        return null;
+      return null;
     }
     return user;
   }
 
-  async update(id: string, dto: UpdateUserDto, organizationId?: string): Promise<User> {
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    organizationId?: string,
+  ): Promise<User> {
     if (organizationId) {
-        const user = await this.prisma.user.findFirst({ where: { id, organizationId }});
-        if (!user) throw new NotFoundException('User not found');
+      const user = await this.prisma.user.findFirst({
+        where: { id, organizationId },
+      });
+      if (!user) throw new NotFoundException('User not found');
     }
 
     const data: Prisma.UserUpdateInput = { ...dto };
@@ -94,7 +104,10 @@ export class UsersService {
   }
 
   /** Update current user's own profile (name, email, password only). No role change. */
-  async updateMyProfile(userId: string, dto: UpdateMyProfileDto): Promise<User> {
+  async updateMyProfile(
+    userId: string,
+    dto: UpdateMyProfileDto,
+  ): Promise<User> {
     if (dto.email) {
       const existing = await this.prisma.user.findFirst({
         where: { email: dto.email, id: { not: userId } },
@@ -110,8 +123,10 @@ export class UsersService {
 
   async remove(id: string, organizationId?: string): Promise<User> {
     if (organizationId) {
-        const user = await this.prisma.user.findFirst({ where: { id, organizationId }});
-        if (!user) throw new NotFoundException('User not found');
+      const user = await this.prisma.user.findFirst({
+        where: { id, organizationId },
+      });
+      if (!user) throw new NotFoundException('User not found');
     }
     return this.prisma.user.delete({ where: { id } });
   }

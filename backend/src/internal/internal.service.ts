@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomUUID } from 'crypto';
 import { ConversationsGateway } from '../conversations/conversations.gateway';
@@ -16,7 +21,10 @@ export class InternalService {
   async createOrganizationWithAdmin(data: any) {
     try {
       // 1. Create Organization
-      const slug = data.orgName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const slug = data.orgName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
       const organization = await this.prisma.organization.create({
         data: {
           name: data.orgName,
@@ -50,22 +58,31 @@ export class InternalService {
         },
       };
     } catch (error: any) {
-      this.logger.error(`Error creating organization/admin: ${error.message}`, error.stack);
-      
+      this.logger.error(
+        `Error creating organization/admin: ${error.message}`,
+        error.stack,
+      );
+
       if (error.code === 'P2002') {
         const target = error.meta?.target;
         if (Array.isArray(target)) {
           if (target.includes('slug')) {
-            throw new ConflictException(`Organization name generates a slug that already exists. Try a different name.`);
+            throw new ConflictException(
+              `Organization name generates a slug that already exists. Try a different name.`,
+            );
           }
           if (target.includes('email')) {
-            throw new ConflictException(`User email already exists: ${data.userEmail}`);
+            throw new ConflictException(
+              `User email already exists: ${data.userEmail}`,
+            );
           }
         }
         throw new ConflictException('Data conflict (duplicate entry)');
       }
-      
-      throw new InternalServerErrorException('Failed to create organization/admin');
+
+      throw new InternalServerErrorException(
+        'Failed to create organization/admin',
+      );
     }
   }
 
@@ -128,11 +145,14 @@ export class InternalService {
     });
   }
 
-  async sendRoomMessage(roomId: string, userId: string, content: string, organizationId?: string) {
+  async sendRoomMessage(
+    roomId: string,
+    userId: string,
+    content: string,
+    organizationId?: string,
+  ) {
     const room = await this.prisma.conversation.findFirst({
-      where: organizationId
-        ? { id: roomId, organizationId }
-        : { id: roomId },
+      where: organizationId ? { id: roomId, organizationId } : { id: roomId },
       select: { organizationId: true },
     });
     if (!room) throw new Error('Room not found or access denied');
@@ -188,16 +208,20 @@ export class InternalService {
     });
   }
 
-  async openDM(currentUserId: string, targetUserId: string, organizationId: string) {
+  async openDM(
+    currentUserId: string,
+    targetUserId: string,
+    organizationId: string,
+  ) {
     const channel = await this.ensureInternalChannel(organizationId);
     const targetUser = await this.prisma.user.findUnique({
       where: { id: targetUserId },
     });
     if (!targetUser) throw new Error('Target user not found');
-    
+
     // Check if target user is in same organization
     if (targetUser.organizationId !== organizationId) {
-        throw new Error('Target user is not in your organization');
+      throw new Error('Target user is not in your organization');
     }
 
     const identifier = this.makeDMIdentifier(currentUserId, targetUserId);
@@ -219,10 +243,10 @@ export class InternalService {
 
   async getDMMessages(conversationId: string, organizationId?: string) {
     if (organizationId) {
-        const conv = await this.prisma.conversation.findFirst({
-            where: { id: conversationId, organizationId }
-        });
-        if (!conv) throw new Error('Conversation not found');
+      const conv = await this.prisma.conversation.findFirst({
+        where: { id: conversationId, organizationId },
+      });
+      if (!conv) throw new Error('Conversation not found');
     }
     return this.prisma.message.findMany({
       where: { conversationId },
@@ -231,7 +255,12 @@ export class InternalService {
     });
   }
 
-  async sendDMMessage(conversationId: string, userId: string, content: string, organizationId?: string) {
+  async sendDMMessage(
+    conversationId: string,
+    userId: string,
+    content: string,
+    organizationId?: string,
+  ) {
     const conv = await this.prisma.conversation.findFirst({
       where: organizationId
         ? { id: conversationId, organizationId }

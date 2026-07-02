@@ -1,24 +1,64 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { CreateConversationDto, UpdateConversationDto } from '@/types/api';
+import type { Conversation, CreateConversationDto, UpdateConversationDto, Message } from '@/types/api';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
 import { socketService } from '@/lib/socket';
+
+type SocketMessage = Partial<Message> & { conversationId?: string; conversation?: { id?: string } };
 
 export function useConversations() {
     const queryClient = useQueryClient();
 
     useEffect(() => {
-        const handleUpdate = () => {
+        // Atualiza a lista em cache com o payload do socket, evitando um
+        // refetch completo de GET /conversations a cada mensagem da organização.
+        const handleMessage = (message: SocketMessage) => {
+            const convId = message?.conversationId ?? message?.conversation?.id;
+            if (!convId) return;
+
+            let foundInCache = false;
+            queryClient.setQueryData<Conversation[]>(['conversations'], (old) => {
+                if (!old) return old;
+                const idx = old.findIndex((c) => c.id === convId);
+                if (idx === -1) return old;
+                foundInCache = true;
+
+                const conv = old[idx];
+                // O hook é montado em mais de um lugar (sidebar + página);
+                // se a última mensagem já é esta, não aplica de novo.
+                if (message.id && conv.messages?.[0]?.id === message.id) return old;
+
+                const updated: Conversation = {
+                    ...conv,
+                    lastMessageAt: (message.createdAt as Date) ?? new Date(),
+                    unreadCount:
+                        message.senderType === 'contact'
+                            ? (conv.unreadCount || 0) + 1
+                            : conv.unreadCount,
+                    messages: [message as Message],
+                };
+                const next = [...old];
+                next.splice(idx, 1);
+                return [updated, ...next];
+            });
+
+            // Conversa nova (ainda não está na lista): busca a lista atualizada
+            if (!foundInCache) {
+                queryClient.invalidateQueries({ queryKey: ['conversations'] });
+            }
+        };
+
+        const handleStatusChange = () => {
             queryClient.invalidateQueries({ queryKey: ['conversations'] });
         };
 
-        socketService.onMessageCreated(handleUpdate);
-        socketService.onStatusChange(handleUpdate);
+        socketService.onMessageCreated(handleMessage);
+        socketService.onStatusChange(handleStatusChange);
 
         return () => {
-            socketService.offMessageCreated(handleUpdate);
-            socketService.offStatusChange(handleUpdate);
+            socketService.offMessageCreated(handleMessage);
+            socketService.offStatusChange(handleStatusChange);
         };
     }, [queryClient]);
 
@@ -80,8 +120,10 @@ export function useMarkConversationAsRead() {
     return useMutation({
         mutationFn: (id: string) => api.markConversationAsRead(id),
         onSuccess: (_, id) => {
-            queryClient.invalidateQueries({ queryKey: ['conversations'] });
-            queryClient.invalidateQueries({ queryKey: ['conversations', id] });
+            // Patch local em vez de refetch completo: só zera o contador
+            queryClient.setQueryData<Conversation[]>(['conversations'], (old) =>
+                old?.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c)),
+            );
         },
         onError: (error: unknown) => {
             console.error('Error marking conversation as read:', error);

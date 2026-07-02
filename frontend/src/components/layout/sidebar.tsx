@@ -18,6 +18,7 @@ import {
     LogOut,
     GitBranch,
     Send,
+    Calendar,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/avatar';
 import { useState } from 'react';
@@ -40,6 +41,7 @@ const navigation = [
         title: 'Pipeline',
         items: [
             { name: 'Pipeline', href: '/pipeline', icon: GitBranch },
+            { name: 'Calendário', href: '/calendar', icon: Calendar },
         ],
     },
     {
@@ -95,13 +97,13 @@ export function Sidebar({ className, onClose }: { className?: string; onClose?: 
         }
         if (role === 'admin') return true;
         if (role === 'sdr') {
-            return ['/dashboard', '/conversations', '/leads'].includes(href);
+            return ['/dashboard', '/conversations', '/leads', '/calendar'].includes(href);
         }
         if (role === 'vendedor') {
-            return ['/dashboard', '/conversations', '/leads', '/pipeline'].includes(href);
+            return ['/dashboard', '/conversations', '/leads', '/pipeline', '/calendar'].includes(href);
         }
         if (role === 'consultant' || role === 'manager') {
-            return ['/dashboard', '/conversations', '/leads', '/pipeline', '/chat', '/broadcast'].includes(href);
+            return ['/dashboard', '/conversations', '/leads', '/pipeline', '/chat', '/broadcast', '/calendar'].includes(href);
         }
         return ['/dashboard', '/conversations', '/leads'].includes(href);
     };
